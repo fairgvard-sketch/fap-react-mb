@@ -1,0 +1,17 @@
+export const C = {
+  green: '#1a4a35',
+  greenLight: '#3d8b6b',
+  bg: '#f7f6f2',
+  white: '#ffffff',
+  text: '#1c1c1e',
+  textSecondary: '#8e8e93',
+  border: '#e8e8e8',
+  borderLight: '#f2f2f7',
+  navInactive: '#c7c7cc',
+  cardShadow: 'rgba(0,0,0,0.04)',
+  overlay: 'rgba(0,0,0,0.25)',
+  tagIn: { bg: '#e8f8ef', text: '#1b7a47' },
+  tagOut: { bg: '#fff0f0', text: '#c0392b' },
+  salmon: '#E88D67',
+  incomeColors: ['#1a4a35','#3d8b6b','#f4a261','#e76f51','#457b9d','#a8dadc','#e9c46a','#264653','#95d5b2','#b7e4c7'],
+};

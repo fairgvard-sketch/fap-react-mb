@@ -1,17 +1,17 @@
 import { ScrollView, View, Text, TouchableOpacity, TextInput, StyleSheet, Modal } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import Svg, { Path, Text as SvgText } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useMemo, useRef } from 'react';
-import { useStore } from '../../store/useStore';
+import { useTranslation } from 'react-i18next';
+import { useStore, useCurrency } from '../../store/useStore';
 import { C } from '../../constants/colors';
-import { CATEGORY_META } from '../../constants/categories';
+import { CATEGORY_META, CAT_KEY, tCat } from '../../constants/categories';
 import CategoryIcon from '../../components/CategoryIcon';
 import { MagnifyingGlass, X, CalendarBlank, Mailbox, Package } from 'phosphor-react-native';
-import { fmt, todayISO, RU_GEN, RU_FULL, CURRENCY } from '../../utils/format';
+import { fmt, todayISO } from '../../utils/format';
 import SwipeableRow from '../../components/SwipeableRow';
 
-const WEEK = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 const FALLBACK_COLORS = ['#E88D67','#457b9d','#3d8b6b','#e9c46a','#9b72cf','#f4a261'];
 
 // ─── Donut chart constants ────────────────────────────────────────────────────
@@ -57,28 +57,30 @@ function eomISO(iso: string) {
   const d = new Date(iso + 'T12:00:00');
   return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
 }
-function labelFor(start: string, end: string): string {
+function labelFor(start: string, end: string, monthsFull: string[], monthsGen: string[], yearLabel: string): string {
   const s = new Date(start + 'T12:00:00'), e = new Date(end + 'T12:00:00');
-  if (start === end) return `${s.getDate()} ${RU_GEN[s.getMonth()]} ${s.getFullYear()}`;
+  if (start === end) return `${s.getDate()} ${monthsGen[s.getMonth()]} ${s.getFullYear()}`;
   if (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()) {
     if (start === somISO(start) && end === eomISO(start))
-      return `${RU_FULL[s.getMonth()]} ${s.getFullYear()}`;
-    return `${s.getDate()} – ${e.getDate()} ${RU_GEN[s.getMonth()]} ${s.getFullYear()}`;
+      return `${monthsFull[s.getMonth()]} ${s.getFullYear()}`;
+    return `${s.getDate()} – ${e.getDate()} ${monthsGen[s.getMonth()]} ${s.getFullYear()}`;
   }
   if (s.getFullYear() === e.getFullYear()) {
     if (start === s.getFullYear() + '-01-01' && end === s.getFullYear() + '-12-31')
-      return `${s.getFullYear()} год`;
+      return yearLabel.replace('{{year}}', String(s.getFullYear()));
   }
-  return `${s.getDate()} ${RU_GEN[s.getMonth()]} – ${e.getDate()} ${RU_GEN[e.getMonth()]} ${e.getFullYear()}`;
+  return `${s.getDate()} ${monthsGen[s.getMonth()]} – ${e.getDate()} ${monthsGen[e.getMonth()]} ${e.getFullYear()}`;
 }
 
 
 // ─── Calendar ────────────────────────────────────────────────────────────────
-function MonthCalendar({ year, month, startSel, endSel, onDay, today }: {
+function MonthCalendar({ year, month, startSel, endSel, onDay, today, monthsFull, weekDays }: {
   year: number; month: number;
   startSel: string | null; endSel: string | null;
   onDay: (iso: string) => void;
   today: string;
+  monthsFull: string[];
+  weekDays: string[];
 }) {
   const ms = `${year}-${String(month + 1).padStart(2, '0')}`;
   const fd = new Date(year, month, 1).getDay();
@@ -90,9 +92,9 @@ function MonthCalendar({ year, month, startSel, endSel, onDay, today }: {
   while (cells.length % 7 !== 0) cells.push(null);
   return (
     <View style={{ marginBottom: 24 }}>
-      <Text style={cal.monthLabel}>{RU_FULL[month]}, {year}</Text>
+      <Text style={cal.monthLabel}>{monthsFull[month]}, {year}</Text>
       <View style={{ flexDirection: 'row', marginBottom: 6 }}>
-        {WEEK.map(w => (
+        {weekDays.map(w => (
           <View key={w} style={{ flex: 1, alignItems: 'center' }}>
             <Text style={cal.weekDay}>{w}</Text>
           </View>
@@ -128,11 +130,13 @@ function MonthCalendar({ year, month, startSel, endSel, onDay, today }: {
 }
 
 // ─── Donut chart ──────────────────────────────────────────────────────────────
-function DonutChart({ cats, total, accentColor }: {
+function DonutChart({ cats, total, accentColor, totalLabel }: {
   cats: [string, number][];
   total: number;
   accentColor: string;
+  totalLabel: string;
 }) {
+  const currency = useCurrency();
   if (cats.length === 0) return null;
   const totalSafe = total || 1;
   const isSingle  = cats.length === 1;
@@ -219,10 +223,10 @@ function DonutChart({ cats, total, accentColor }: {
         }}
       >
         <Text style={{ fontFamily: 'Manrope-SemiBold', fontSize: 10, color: C.textSecondary, letterSpacing: 1 }}>
-          ИТОГО
+          {totalLabel}
         </Text>
         <Text style={{ fontFamily: 'Outfit-Medium', fontSize: 20, color: accentColor, letterSpacing: -0.5, marginTop: 2 }}>
-          {fmt(total)} {CURRENCY}
+          {fmt(total)} {currency}
         </Text>
       </View>
 
@@ -232,7 +236,7 @@ function DonutChart({ cats, total, accentColor }: {
 
 // ─── Category breakdown modal ─────────────────────────────────────────────────
 function CategoryModal({
-  visible, onClose, cats, total, label, accentColor, title,
+  visible, onClose, cats, total, label, accentColor, title, totalLabel, catLabel,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -241,7 +245,10 @@ function CategoryModal({
   label: string;
   accentColor: string;
   title: string;
+  totalLabel: string;
+  catLabel: (cat: string) => string;
 }) {
+  const currency = useCurrency();
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.white }} edges={['top', 'bottom']}>
@@ -252,7 +259,7 @@ function CategoryModal({
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <View style={{ flex: 1, marginRight: 16 }}>
                 <Text style={{ fontFamily: 'Outfit-Medium', fontSize: 40, color: C.text, letterSpacing: -1.5, lineHeight: 46 }}>
-                  {fmt(total)} {CURRENCY}
+                  {fmt(total)} {currency}
                 </Text>
                 <Text style={{ fontFamily: 'Manrope-Regular', fontSize: 14, color: C.textSecondary, marginTop: 5 }}>
                   {title} · {label}
@@ -276,7 +283,8 @@ function CategoryModal({
           {/* ── Donut chart ── */}
           {cats.length > 0 && (
             <View style={{ alignItems: 'center', paddingVertical: 10 }}>
-              <DonutChart cats={cats} total={total} accentColor={accentColor} />
+              <DonutChart cats={cats} total={total} accentColor={accentColor} totalLabel={totalLabel} />
+
             </View>
           )}
 
@@ -313,10 +321,10 @@ function CategoryModal({
                       </View>
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text numberOfLines={1} style={{ fontFamily: 'Manrope-SemiBold', fontSize: 11, color: C.text }}>
-                          {cat}
+                          {catLabel(cat)}
                         </Text>
                         <Text numberOfLines={1} style={{ fontFamily: 'Outfit-Medium', fontSize: 11, color: color, marginTop: 0 }}>
-                          {fmt(amt)} {CURRENCY}
+                          {fmt(amt)} {currency}
                         </Text>
                       </View>
                     </View>
@@ -334,10 +342,16 @@ function CategoryModal({
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function HistoryScreen() {
+  const { t } = useTranslation();
+  const monthsFull = t('common.monthsFull').split(',');
+  const monthsGen  = t('common.monthsGen').split(',');
+  const weekDays   = t('common.weekDays').split(',');
   const { txs, deleteTx } = useStore();
+  const currency = useCurrency();
   const [search, setSearch]     = useState('');
   const [calOpen, setCalOpen]   = useState(false);
   const [chartMode, setChartMode] = useState<'expense' | 'income' | null>(null);
+  const [visibleCount, setVisibleCount] = useState(30);
   const now = todayISO();
   const [start, setStart]       = useState(somISO(now));
   const [end,   setEnd]         = useState(eomISO(now));
@@ -364,11 +378,12 @@ export default function HistoryScreen() {
   }, []);
 
   const filtered = useMemo(() => {
+    setVisibleCount(30);
     let list = [...txs].sort((a, b) => b.date.localeCompare(a.date));
     if (active) list = list.filter(t => t.date >= start && t.date <= end);
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter(t => (t.note?.toLowerCase().includes(q)) || t.cat.toLowerCase().includes(q));
+      list = list.filter(tx => (tx.note?.toLowerCase().includes(q)) || tx.cat.toLowerCase().includes(q));
     }
     return list;
   }, [txs, start, end, active, search]);
@@ -396,9 +411,11 @@ export default function HistoryScreen() {
 
   const groups = useMemo(() => {
     const map: Record<string, typeof filtered> = {};
-    filtered.forEach(t => { (map[t.date] = map[t.date] || []).push(t); });
+    filtered.slice(0, visibleCount).forEach(t => { (map[t.date] = map[t.date] || []).push(t); });
     return Object.entries(map);
-  }, [filtered]);
+  }, [filtered, visibleCount]);
+
+  const hasMore = filtered.length > visibleCount;
 
   function openCal() {
     setTmpS(start); setTmpE(end); setCalOpen(true);
@@ -423,10 +440,12 @@ export default function HistoryScreen() {
   }
   function grpDate(d: string) {
     const dt = new Date(d + 'T12:00:00');
-    return `${dt.getDate()} ${RU_GEN[dt.getMonth()]}`;
+    return `${dt.getDate()} ${monthsGen[dt.getMonth()]}`;
   }
 
-  const periodLabel = active ? labelFor(start, end) : 'За всё время';
+  const periodLabel = active
+    ? labelFor(start, end, monthsFull, monthsGen, t('history.yearLabel'))
+    : t('history.all');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -437,7 +456,7 @@ export default function HistoryScreen() {
           <TouchableOpacity style={active ? styles.chipOn : styles.chipOff} onPress={openCal}>
             <CalendarBlank size={15} weight="duotone" color={C.textSecondary} />
             <Text style={[styles.chipTxt, !active && { color: C.textSecondary }]}>
-              {active ? labelFor(start, end) : 'За всё время'}
+              {active ? labelFor(start, end, monthsFull, monthsGen, t('history.yearLabel')) : t('history.all')}
             </Text>
             {active && (
               <TouchableOpacity onPress={() => setActive(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -454,8 +473,8 @@ export default function HistoryScreen() {
             activeOpacity={expense > 0 ? 0.7 : 1}
             onPress={() => expense > 0 && setChartMode('expense')}
           >
-            <Text style={[styles.summAmt, { color: '#E88D67' }]} numberOfLines={1}>{fmt(expense)} {CURRENCY}</Text>
-            <Text style={styles.summLbl}>ТРАТЫ {expense > 0 && '›'}</Text>
+            <Text style={[styles.summAmt, { color: '#E88D67' }]} numberOfLines={1}>{fmt(expense)} {currency}</Text>
+            <Text style={styles.summLbl}>{t('history.expense')} {expense > 0 && '›'}</Text>
             {expense > 0 && catParts.length > 0 && (
               <View style={{ flexDirection: 'row', height: 4, borderRadius: 2, overflow: 'hidden', marginTop: 8 }}>
                 {catParts.map(([cat, amt], i) => (
@@ -474,8 +493,8 @@ export default function HistoryScreen() {
             activeOpacity={income > 0 ? 0.7 : 1}
             onPress={() => income > 0 && setChartMode('income')}
           >
-            <Text style={[styles.summAmt, { color: '#1a4a35' }]} numberOfLines={1}>+{fmt(income)} {CURRENCY}</Text>
-            <Text style={styles.summLbl}>ДОХОДЫ {income > 0 && '›'}</Text>
+            <Text style={[styles.summAmt, { color: '#1a4a35' }]} numberOfLines={1}>+{fmt(income)} {currency}</Text>
+            <Text style={styles.summLbl}>{t('history.income')} {income > 0 && '›'}</Text>
             {income > 0 && (
               <View style={{ flexDirection: 'row', height: 4, borderRadius: 2, overflow: 'hidden', marginTop: 8 }}>
                 <View style={{ flex: 1, height: 4, backgroundColor: '#457b9d', borderRadius: 2 }} />
@@ -491,7 +510,7 @@ export default function HistoryScreen() {
             style={styles.searchInput}
             value={search}
             onChangeText={setSearch}
-            placeholder="Поиск..."
+            placeholder={t('history.search')}
             placeholderTextColor={C.textSecondary}
           />
           {search.length > 0 && (
@@ -505,45 +524,55 @@ export default function HistoryScreen() {
         {groups.length === 0 ? (
           <View style={styles.empty}>
             <Mailbox size={52} weight="duotone" color={C.textSecondary} />
-            <Text style={styles.emptyTitle}>Ничего не найдено</Text>
-            <Text style={styles.emptyDesc}>В выбранный период операций нет</Text>
+            <Text style={styles.emptyTitle}>{t('history.empty')}</Text>
+            <Text style={styles.emptyDesc}>{t('history.emptyDesc')}</Text>
           </View>
-        ) : groups.map(([date, items]) => {
-          const dI = items.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
-          const dE = items.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
-          const dB = dI - dE;
-          return (
-            <View key={date}>
-              <View style={styles.grpHdr}>
-                <Text style={styles.grpDate}>{grpDate(date)}</Text>
-                <Text style={[styles.grpBal, { color: dB >= 0 ? '#1a4a35' : '#E88D67' }]}>
-                  {dB >= 0 ? '+' : '−'}{fmt(Math.abs(dB))} {CURRENCY}
-                </Text>
-              </View>
-              <View style={styles.txCard}>
-                {items.map(tx => {
-                  return (
-                    <SwipeableRow
-                      key={tx.id}
-                      onDelete={() => deleteTx(tx.id)}
-                    >
-                      <View style={styles.txRow}>
-                        <CategoryIcon cat={tx.cat} size={20} boxSize={44} radius={12} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.txNote} numberOfLines={1}>{tx.note || tx.cat}</Text>
-                          <Text style={styles.txMeta}>{tx.cat}</Text>
+        ) : (
+          <>
+            {groups.map(([date, items]) => {
+              const dI = items.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
+              const dE = items.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
+              const dB = dI - dE;
+              return (
+                <View key={date}>
+                  <View style={styles.grpHdr}>
+                    <Text style={styles.grpDate}>{grpDate(date)}</Text>
+                    <Text style={[styles.grpBal, { color: dB >= 0 ? '#1a4a35' : '#E88D67' }]}>
+                      {dB >= 0 ? '+' : '−'}{fmt(Math.abs(dB))} {currency}
+                    </Text>
+                  </View>
+                  <View style={styles.txCard}>
+                    {items.map(tx => (
+                      <SwipeableRow key={tx.id} onDelete={() => deleteTx(tx.id)}>
+                        <View style={styles.txRow}>
+                          <CategoryIcon cat={tx.cat} size={20} boxSize={44} radius={12} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.txNote} numberOfLines={1}>{(tx.note && !CAT_KEY[tx.note]) ? tx.note : tCat(tx.cat, t)}</Text>
+                            <Text style={styles.txMeta}>{tCat(tx.cat, t)}</Text>
+                          </View>
+                          <Text style={[styles.txAmt, { color: tx.type === 'income' ? '#1a4a35' : '#E88D67' }]}>
+                            {tx.type === 'income' ? '+' : '−'}{fmt(tx.amount)} {currency}
+                          </Text>
                         </View>
-                        <Text style={[styles.txAmt, { color: tx.type === 'income' ? '#1a4a35' : '#E88D67' }]}>
-                          {tx.type === 'income' ? '+' : '−'}{fmt(tx.amount)} {CURRENCY}
-                        </Text>
-                      </View>
-                    </SwipeableRow>
-                  );
-                })}
-              </View>
-            </View>
-          );
-        })}
+                      </SwipeableRow>
+                    ))}
+                  </View>
+                </View>
+              );
+            })}
+            {hasMore && (
+              <TouchableOpacity
+                style={styles.loadMoreBtn}
+                onPress={() => setVisibleCount(c => c + 30)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.loadMoreTxt}>
+                  {t('history.loadMore', { n: filtered.length - visibleCount })}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
       </ScrollView>
 
       {/* Calendar modal */}
@@ -551,28 +580,28 @@ export default function HistoryScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }} edges={['top', 'bottom']}>
           <View style={styles.mHdr}>
             <TouchableOpacity onPress={() => setCalOpen(false)}>
-              <Text style={styles.mClose}>Закрыть</Text>
+              <Text style={styles.mClose}>{t('history.close')}</Text>
             </TouchableOpacity>
-            <Text style={styles.mTitle}>Выберите период</Text>
+            <Text style={styles.mTitle}>{t('history.selectPeriod')}</Text>
             <TouchableOpacity onPress={apply}>
-              <Text style={styles.mDone}>Готово</Text>
+              <Text style={styles.mDone}>{t('history.done')}</Text>
             </TouchableOpacity>
           </View>
           <View style={{ backgroundColor: C.white }}>
             <View style={styles.drRow}>
               <View style={styles.drBox}>
-                <Text style={styles.drLbl}>Дата начала</Text>
+                <Text style={styles.drLbl}>{t('history.dateFrom')}</Text>
                 <Text style={styles.drVal}>{tmpS ? tmpS.split('-').reverse().join('.') : '—'}</Text>
               </View>
               <View style={styles.drBox}>
-                <Text style={styles.drLbl}>Дата окончания</Text>
+                <Text style={styles.drLbl}>{t('history.dateTo')}</Text>
                 <Text style={styles.drVal}>{tmpE ? tmpE.split('-').reverse().join('.') : '—'}</Text>
               </View>
             </View>
             <View style={styles.presetsRow}>
               {(['today', '7days', 'month', 'year'] as const).map((p, i) => (
                 <TouchableOpacity key={p} style={styles.presetBtn} onPress={() => preset(p)}>
-                  <Text style={styles.presetTxt}>{['Сегодня', '7 дней', 'Этот месяц', 'Этот год'][i]}</Text>
+                  <Text style={styles.presetTxt}>{[t('history.today'), t('history.sevenDays'), t('history.thisMonth'), t('history.thisYear')][i]}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -590,6 +619,8 @@ export default function HistoryScreen() {
                     startSel={tmpS} endSel={tmpE}
                     onDay={handleDay}
                     today={now}
+                    monthsFull={monthsFull}
+                    weekDays={weekDays}
                   />
                 </View>
               );
@@ -606,7 +637,9 @@ export default function HistoryScreen() {
         total={expense}
         label={periodLabel}
         accentColor="#E88D67"
-        title="Траты по категориям"
+        title={t('history.expenseCats')}
+        totalLabel={t('history.total')}
+        catLabel={cat => tCat(cat, t)}
       />
 
       {/* Income breakdown modal */}
@@ -617,7 +650,9 @@ export default function HistoryScreen() {
         total={income}
         label={periodLabel}
         accentColor="#1a4a35"
-        title="Доходы по источникам"
+        title={t('history.incomeSources')}
+        totalLabel={t('history.total')}
+        catLabel={cat => tCat(cat, t)}
       />
     </SafeAreaView>
   );
@@ -665,6 +700,9 @@ const styles = StyleSheet.create({
   txNote: { fontFamily: 'Manrope-SemiBold', fontSize: 15, color: C.text },
   txMeta: { fontFamily: 'Manrope-Regular', fontSize: 12, color: C.textSecondary, marginTop: 2 },
   txAmt: { fontFamily: 'Outfit-Medium', fontSize: 15 },
+
+  loadMoreBtn: { alignItems: 'center', paddingVertical: 14, backgroundColor: C.white, borderRadius: 16, borderWidth: 1.5, borderColor: C.border },
+  loadMoreTxt: { fontFamily: 'Manrope-SemiBold', fontSize: 14, color: C.textSecondary },
 
   empty: { alignItems: 'center', paddingVertical: 60, gap: 8 },
   emptyTitle: { fontFamily: 'Manrope-Bold', fontSize: 18, color: C.text },

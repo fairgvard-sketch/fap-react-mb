@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { randomUUID } from 'expo-crypto';
 import { saveUserData } from '../utils/firebase';
 import { applyRecurrings } from '../utils/recurrings';
-import type { User } from '../utils/firebase';
+import type { User, PartnerSummary } from '../utils/firebase';
+import { applyLang, type Lang } from '../utils/i18n';
+import { CURRENCY_MAP, type CurrencyKey } from '../utils/format';
 
 export interface Transaction {
   id: string;
@@ -78,9 +81,17 @@ interface StoreState {
   autoRules: AutoRule[];
   user: User | null;
   authReady: boolean;
+  partnerUid: string | null;
+  partnerSummary: PartnerSummary | null;
+  lang: Lang;
+  currency: CurrencyKey;
 
   setUser: (user: User | null) => void;
   setAuthReady: (ready: boolean) => void;
+  setPartner: (uid: string, summary: PartnerSummary) => void;
+  clearPartner: () => void;
+  setLang: (lang: Lang) => void;
+  setCurrency: (currency: CurrencyKey) => void;
   loadFromStorage: () => Promise<void>;
   loadFromFirebase: (data: any) => void;
   saveAll: () => void;
@@ -130,20 +141,47 @@ export const useStore = create<StoreState>((set, get) => ({
   autoRules: [],
   user: null,
   authReady: false,
+  partnerUid: null,
+  partnerSummary: null,
+  lang: 'auto',
+  currency: 'RUB',
 
   setUser: (user) => set({ user }),
   setAuthReady: (authReady) => set({ authReady }),
+  setPartner: (uid, summary) => {
+    AsyncStorage.setItem('partnerUid', uid);
+    set({ partnerUid: uid, partnerSummary: summary });
+  },
+  clearPartner: () => {
+    AsyncStorage.removeItem('partnerUid');
+    set({ partnerUid: null, partnerSummary: null });
+  },
+  setLang: (lang) => {
+    AsyncStorage.setItem('lang', lang);
+    set({ lang });
+    applyLang(lang);
+  },
+  setCurrency: (currency) => {
+    AsyncStorage.setItem('currency', currency);
+    set({ currency });
+  },
 
   loadFromStorage: async () => {
-    const [txs, subs, goals, budgets, recurrings, autoRules] = await Promise.all([
+    const [txs, subs, goals, budgets, recurrings, autoRules, partnerUid, langVal, currencyVal] = await Promise.all([
       load('tx', DEMO_TXS),
       load('subs', []),
       load('goals', []),
       load('budgets', {}),
       load('recur', []),
       load('autoRules', []),
+      AsyncStorage.getItem('partnerUid'),
+      AsyncStorage.getItem('lang'),
+      AsyncStorage.getItem('currency'),
     ]);
-    set({ txs, subs, goals, budgets, recurrings, autoRules });
+    const lang = (langVal as Lang) ?? 'auto';
+    const currency = (currencyVal as CurrencyKey) ?? 'RUB';
+    applyLang(lang);
+    set({ txs, subs, goals, budgets, recurrings, autoRules, partnerUid: partnerUid ?? null, lang, currency });
   },
 
   loadFromFirebase: (data) => {
@@ -219,7 +257,7 @@ export const useStore = create<StoreState>((set, get) => ({
         if (!alreadyFired) {
           const dd = String(rule.day).padStart(2, '0');
           newTxs.push({
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             type: rule.txType ?? 'expense',
             amount: rule.amount,
             cat: rule.cat,
@@ -242,7 +280,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   addTx: (tx) => {
-    set(s => ({ txs: [...s.txs, { ...tx, id: crypto.randomUUID() }] }));
+    set(s => ({ txs: [...s.txs, { ...tx, id: randomUUID() }] }));
     get().saveAll();
   },
 
@@ -252,7 +290,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   addSub: (sub) => {
-    set(s => ({ subs: [...s.subs, { ...sub, id: crypto.randomUUID() }] }));
+    set(s => ({ subs: [...s.subs, { ...sub, id: randomUUID() }] }));
     get().saveAll();
   },
 
@@ -267,7 +305,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   addGoal: (goal) => {
-    set(s => ({ goals: [...s.goals, { ...goal, id: crypto.randomUUID(), saved: 0 }] }));
+    set(s => ({ goals: [...s.goals, { ...goal, id: randomUUID(), saved: 0 }] }));
     get().saveAll();
   },
 
@@ -306,7 +344,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   addRecurring: (r) => {
-    set(s => ({ recurrings: [...s.recurrings, { ...r, id: crypto.randomUUID() }] }));
+    set(s => ({ recurrings: [...s.recurrings, { ...r, id: randomUUID() }] }));
     get().saveAll();
   },
 
@@ -316,7 +354,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   addAutoRule: (rule) => {
-    set(s => ({ autoRules: [...s.autoRules, { ...rule, id: crypto.randomUUID() }] }));
+    set(s => ({ autoRules: [...s.autoRules, { ...rule, id: randomUUID() }] }));
     get().saveAll();
   },
 
@@ -335,3 +373,5 @@ export const useStore = create<StoreState>((set, get) => ({
     get().saveAll();
   },
 }));
+
+export const useCurrency = () => useStore(s => CURRENCY_MAP[s.currency]);

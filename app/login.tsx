@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 import { GoogleAuthProvider, signInWithCredential, signInAnonymously, auth } from '../utils/firebase';
@@ -18,6 +19,7 @@ const discovery = {
 const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID!;
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const user = useStore(s => s.user);
   const authReady = useStore(s => s.authReady);
@@ -61,12 +63,10 @@ export default function LoginScreen() {
           <Text style={styles.iconText}>💼</Text>
         </View>
 
-        <Text style={[styles.title, { color: C.text }]}>Финансовый</Text>
-        <Text style={[styles.title, { color: C.green }]}>контроль</Text>
+        <Text style={[styles.title, { color: C.text }]}>{t('home.title1')}</Text>
+        <Text style={[styles.title, { color: C.green }]}>{t('home.title2')}</Text>
 
-        <Text style={styles.desc}>
-          Войдите, чтобы получить свой кошелёк — доходы, расходы, подписки, копилка и бюджеты в одном месте.
-        </Text>
+        <Text style={styles.desc}>{t('login.desc')}</Text>
 
         <TouchableOpacity
           style={styles.googleBtn}
@@ -75,10 +75,10 @@ export default function LoginScreen() {
           activeOpacity={0.85}
         >
           <Text style={styles.googleIcon}>G</Text>
-          <Text style={styles.googleText}>Войти через Google</Text>
+          <Text style={styles.googleText}>{t('login.google')}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.hint}>Защищённый вход через Google. Данные каждого аккаунта изолированы.</Text>
+        <Text style={styles.hint}>{t('login.hint')}</Text>
 
         {__DEV__ && (
           <TouchableOpacity
@@ -90,12 +90,12 @@ export default function LoginScreen() {
             }}
             activeOpacity={0.7}
           >
-            <Text style={styles.devBtnText}>Войти как гость (dev)</Text>
+            <Text style={styles.devBtnText}>{t('login.guest')}</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <Text style={styles.footer}>Personal Finance For Two</Text>
+      <Text style={styles.footer}>{t('login.footer')}</Text>
     </View>
   );
 }

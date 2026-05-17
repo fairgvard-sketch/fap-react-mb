@@ -1,15 +1,16 @@
 import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRef, useMemo, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { type BottomSheetHandle } from '../../components/BottomSheet';
-import { useStore, type AutoRule } from '../../store/useStore';
+import { useStore, useCurrency, type AutoRule } from '../../store/useStore';
 import { C } from '../../constants/colors';
-import { fmt, fmtDate, RU_SHORT, CURRENCY } from '../../utils/format';
-import { CATEGORY_META } from '../../constants/categories';
+import { fmt } from '../../utils/format';
+import { CATEGORY_META, CAT_KEY, tCat } from '../../constants/categories';
 import { SVCS } from '../../constants/services';
 import { CustomIcon } from '../../components/BrandIcons';
-import { auth, signOut } from '../../utils/firebase';
-import { SignOut, PencilSimple, ArrowsClockwise, Lock, Plus, Leaf, Scales, ForkKnife } from 'phosphor-react-native';
+import { auth } from '../../utils/firebase';
+import { PencilSimple, ArrowsClockwise, Lock, Plus, Leaf, Scales, ForkKnife, UsersFour, GearSix } from 'phosphor-react-native';
 import CategoryIcon from '../../components/CategoryIcon';
 import WalletSvg from '../../components/WalletSvg';
 import SwipeableRow from '../../components/SwipeableRow';
@@ -17,15 +18,23 @@ import AddSubscriptionSheet from '../../components/sheets/AddSubscriptionSheet';
 import AddAutoRuleSheet from '../../components/sheets/AddAutoRuleSheet';
 import OverviewSheet, { type OverviewSheetHandle } from '../../components/sheets/OverviewSheet';
 import IncomeDetailSheet from '../../components/sheets/IncomeDetailSheet';
-
-// Static partner comparison reference (mock)
-const PARTNER_EXP = 8200;
+import PartnerSheet, { type PartnerSheetHandle } from '../../components/sheets/PartnerSheet';
+import SettingsSheet, { type SettingsSheetHandle } from '../../components/sheets/SettingsSheet';
 
 export default function HomeScreen() {
-  const { txs, subs, autoRules, deleteTx, user, checkAutoRules } = useStore();
+  const { t } = useTranslation();
+  const monthsGen = t('common.monthsGen').split(',');
+  const fmtDateLocale = (dateStr: string) => {
+    const d = new Date(dateStr + 'T12:00:00');
+    return `${d.getDate()} ${monthsGen[d.getMonth()]}`;
+  };
+  const { txs, subs, autoRules, deleteTx, user, checkAutoRules, partnerUid, partnerSummary } = useStore();
+  const currency = useCurrency();
   const subSheetRef      = useRef<BottomSheetHandle>(null);
   const autoRuleSheetRef = useRef<BottomSheetHandle>(null);
   const overviewRef      = useRef<OverviewSheetHandle>(null);
+  const partnerSheetRef  = useRef<PartnerSheetHandle>(null);
+  const settingsSheetRef = useRef<SettingsSheetHandle>(null);
   const editSubRef       = useRef<any>(null);
   const editRuleRef      = useRef<AutoRule | null>(null);
   const [, forceUpdate]      = useState(0);
@@ -51,24 +60,40 @@ export default function HomeScreen() {
     }));
   }, [txs, monthStr, yearStr]);
 
-  // Partner comparison
-  const pDiff = PARTNER_EXP > 0 ? Math.round((1 - allExpense / PARTNER_EXP) * 100) : 0;
-
-  // Top expense category (mock partner)
-  const topExpCat = useMemo(() => {
-    const map: Record<string, number> = {};
-    txs.filter(t => t.type === 'expense').forEach(t => { map[t.cat] = (map[t.cat] ?? 0) + t.amount; });
-    const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
-    return sorted[0]?.[0] ?? 'Рестораны';
-  }, [txs]);
-
   const userName = user?.displayName?.split(' ')[0] ?? '';
 
-  const COMPARE_ROWS = [
-    { Icon: Leaf,      iconColor: '#3d8b6b', bg: '#f0f5f0', title: `Ты тратишь на ${Math.abs(pDiff)}% ${pDiff >= 0 ? 'меньше' : 'больше'}`, sub: 'по сравнению с партнёром' },
-    { Icon: Scales,    iconColor: '#8B7355', bg: '#f5f3ee', title: 'Доход примерно равен',                                                    sub: 'в этом месяце' },
-    { Icon: ForkKnife, iconColor: '#E88D67', bg: '#fff0eb', title: `Партнёр чаще тратит на: ${topExpCat}`,                                   sub: 'топ-категория партнёра' },
-  ];
+  const pExpDiff = partnerSummary
+    ? Math.round((1 - allExpense / (partnerSummary.expense || 1)) * 100)
+    : null;
+  const pIncDiff = partnerSummary
+    ? Math.round(Math.abs(allIncome - partnerSummary.income) / (partnerSummary.income || 1) * 100)
+    : null;
+
+  const COMPARE_ROWS = partnerSummary ? [
+    {
+      Icon: Leaf, iconColor: '#3d8b6b', bg: '#f0f5f0',
+      title: pExpDiff !== null
+        ? t(pExpDiff >= 0 ? 'home.spendLess' : 'home.spendMore', { pct: Math.abs(pExpDiff) })
+        : t('home.noExpenseData'),
+      sub: t('home.comparedToPartner'),
+    },
+    {
+      Icon: Scales, iconColor: '#8B7355', bg: '#f5f3ee',
+      title: pIncDiff !== null && pIncDiff <= 10
+        ? t('home.incomeEqual')
+        : pIncDiff !== null
+          ? t('home.incomeDiff', { pct: pIncDiff })
+          : t('home.noIncomeData'),
+      sub: t('home.allTime'),
+    },
+    {
+      Icon: ForkKnife, iconColor: '#E88D67', bg: '#fff0eb',
+      title: partnerSummary.topCat
+        ? t('home.partnerSpends', { cat: tCat(partnerSummary.topCat, t) })
+        : t('home.noTopCat'),
+      sub: t('home.partnerTopCat'),
+    },
+  ] : null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -81,8 +106,8 @@ export default function HomeScreen() {
               <WalletSvg size={26} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.appTitleBlack} numberOfLines={1} adjustsFontSizeToFit>Финансовый</Text>
-              <Text style={styles.appTitleGreen} numberOfLines={1} adjustsFontSizeToFit>контроль</Text>
+              <Text style={styles.appTitleBlack} numberOfLines={1} adjustsFontSizeToFit>{t('home.title1')}</Text>
+              <Text style={styles.appTitleGreen} numberOfLines={1} adjustsFontSizeToFit>{t('home.title2')}</Text>
             </View>
           </View>
           <View style={styles.headerRight}>
@@ -91,11 +116,9 @@ export default function HomeScreen() {
               : null
             }
             {user?.photoURL ? <Text style={styles.headerName}>{userName}</Text> : null}
-            {user?.photoURL ? (
-              <TouchableOpacity onPress={() => signOut(auth)} style={styles.signOutBtn}>
-                <SignOut size={16} weight="bold" color={C.textSecondary} />
-              </TouchableOpacity>
-            ) : null}
+            <TouchableOpacity onPress={() => settingsSheetRef.current?.expand()} style={styles.settingsBtn} activeOpacity={0.75}>
+              <GearSix size={18} weight="duotone" color={C.green} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -106,16 +129,16 @@ export default function HomeScreen() {
           <View style={[styles.circle, { width: 120, height: 120, right: -10, bottom: -30 }]} />
           <View style={[styles.circle, { width: 70,  height: 70,  right: 110, bottom: -10 }]} />
           <View style={[styles.circle, { width: 80,  height: 80,  left: -20,  bottom: -20 }]} />
-          <Text style={styles.balanceLbl}>Общий баланс счёта  ›</Text>
-          <Text style={styles.balanceAmt}>{CURRENCY} {fmt(balance)}</Text>
+          <Text style={styles.balanceLbl}>{t('home.balance')}</Text>
+          <Text style={styles.balanceAmt}>{currency} {fmt(balance)}</Text>
           <View style={styles.balanceRow}>
             <View style={styles.balanceSubCard}>
-              <Text style={styles.balanceSubLbl}>ВСЕ ДОХОДЫ</Text>
-              <Text style={styles.balanceSubAmt}>{CURRENCY} {fmt(allIncome)}</Text>
+              <Text style={styles.balanceSubLbl}>{t('home.allIncome')}</Text>
+              <Text style={styles.balanceSubAmt}>{currency} {fmt(allIncome)}</Text>
             </View>
             <View style={styles.balanceSubCard}>
-              <Text style={styles.balanceSubLbl}>ВСЕ РАСХОДЫ</Text>
-              <Text style={styles.balanceSubAmt}>{CURRENCY} {fmt(allExpense)}</Text>
+              <Text style={styles.balanceSubLbl}>{t('home.allExpense')}</Text>
+              <Text style={styles.balanceSubAmt}>{currency} {fmt(allExpense)}</Text>
             </View>
           </View>
         </TouchableOpacity>
@@ -123,7 +146,7 @@ export default function HomeScreen() {
         {/* Subscriptions */}
         <View>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Подписки</Text>
+            <Text style={styles.sectionTitle}>{t('home.subscriptions')}</Text>
             <TouchableOpacity style={styles.addRoundBtn} onPress={() => { editSubRef.current = null; subSheetRef.current?.expand(); }}>
               <Plus size={20} weight="bold" color="#fff" />
             </TouchableOpacity>
@@ -142,9 +165,9 @@ export default function HomeScreen() {
                     {svc ? <svc.Icon size={28} /> : <CustomIcon size={28} />}
                   </View>
                   <Text style={styles.subCardName}>{sub.name}</Text>
-                  <Text style={styles.subCardDay}>{sub.day} {RU_SHORT[now.getMonth()]}</Text>
+                  <Text style={styles.subCardDay}>{sub.day} {t('common.monthsShort').split(',')[now.getMonth()]}</Text>
                   <Text style={styles.subCardAmt}>
-                    {fmt(sub.amount)} {CURRENCY}<Text style={styles.subCardAmtSub}> /мес</Text>
+                    {fmt(sub.amount)} {currency}<Text style={styles.subCardAmtSub}> {t('sub.perMonth')}</Text>
                   </Text>
                 </TouchableOpacity>
               );
@@ -155,7 +178,7 @@ export default function HomeScreen() {
               activeOpacity={0.7}
             >
               <Text style={styles.subAddPlus}>+</Text>
-              <Text style={styles.subAddText}>Добавить</Text>
+              <Text style={styles.subAddText}>{t('home.add')}</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -163,7 +186,7 @@ export default function HomeScreen() {
         {/* Auto-payments */}
         <View>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Авто-платежи</Text>
+            <Text style={styles.sectionTitle}>{t('home.autoPayments')}</Text>
             <TouchableOpacity style={styles.addRoundBtn} onPress={() => { editRuleRef.current = null; autoRuleSheetRef.current?.expand(); }}>
               <Plus size={20} weight="bold" color="#fff" />
             </TouchableOpacity>
@@ -172,8 +195,8 @@ export default function HomeScreen() {
             <TouchableOpacity style={styles.emptyDashed} onPress={() => { editRuleRef.current = null; autoRuleSheetRef.current?.expand(); }} activeOpacity={0.7}>
               <View style={styles.emptyDashedIcon}><ArrowsClockwise size={24} weight="duotone" color={C.green} /></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.emptyDashedTitle}>Добавить авто-платёж</Text>
-                <Text style={styles.emptyDashedSub}>Расход будет создаваться автоматически каждый месяц</Text>
+                <Text style={styles.emptyDashedTitle}>{t('home.addAutoPayment')}</Text>
+                <Text style={styles.emptyDashedSub}>{t('home.autoPaymentDesc')}</Text>
               </View>
               <Text style={styles.emptyDashedPlus}>+</Text>
             </TouchableOpacity>
@@ -181,17 +204,16 @@ export default function HomeScreen() {
             <View style={{ gap: 10 }}>
               {autoRules.map(rule => {
                 const todayDay = now.getDate();
-                const fired    = txs.some(t => t.autoRuleId === rule.id && t.date.startsWith(monthStr));
+                const fired    = txs.some(tx => tx.autoRuleId === rule.id && tx.date.startsWith(monthStr));
                 const due      = todayDay >= rule.day;
                 const ruleSub  = rule.type === 'subscription' ? subs.find(s => s.id === rule.subId) : null;
                 const svc      = ruleSub ? SVCS.find(s => s.n === ruleSub.svc) : null;
-                const catMeta  = CATEGORY_META[rule.cat];
-                let badgeText  = `${rule.day} числа`;
+                let badgeText  = t('autoRule.day', { day: rule.day });
                 let badgeBg    = '#f2f2f7';
                 let badgeColor = '#555';
-                if (!rule.active) { badgeText = 'Откл';     badgeBg = '#f2f2f7'; badgeColor = C.textSecondary; }
-                else if (fired)   { badgeText = '✓ Списан'; badgeBg = '#e8f8ef'; badgeColor = '#1b7a47'; }
-                else if (due)     { badgeText = 'Сегодня';  badgeBg = '#fff8e8'; badgeColor = '#c8960a'; }
+                if (!rule.active) { badgeText = t('autoRule.off');     badgeBg = '#f2f2f7'; badgeColor = C.textSecondary; }
+                else if (fired)   { badgeText = t('autoRule.charged'); badgeBg = '#e8f8ef'; badgeColor = '#1b7a47'; }
+                else if (due)     { badgeText = t('autoRule.today');   badgeBg = '#fff8e8'; badgeColor = '#c8960a'; }
                 return (
                   <View key={rule.id} style={styles.ruleCard}>
                     {rule.type === 'subscription'
@@ -207,7 +229,7 @@ export default function HomeScreen() {
                       </View>
                     </View>
                     <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                      <Text style={styles.ruleAmt}>−{CURRENCY} {fmt(rule.amount)}</Text>
+                      <Text style={styles.ruleAmt}>−{currency} {fmt(rule.amount)}</Text>
                       <TouchableOpacity
                         style={styles.editRuleBtn}
                         onPress={() => { editRuleRef.current = rule; forceUpdate(n => n + 1); autoRuleSheetRef.current?.expand(); }}
@@ -225,33 +247,48 @@ export default function HomeScreen() {
         {/* Wallet comparison */}
         <View>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Сравнение кошельков</Text>
-            <Text style={styles.sectionHint}>за всё время</Text>
+            <Text style={styles.sectionTitle}>{t('home.walletCompare')}</Text>
+            <TouchableOpacity onPress={() => partnerSheetRef.current?.expand()} activeOpacity={0.7}>
+              <Text style={styles.sectionHint}>{partnerUid ? t('home.connected') : t('home.connect')}</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.card}>
-            {COMPARE_ROWS.map((row, i) => (
-              <View key={i} style={[styles.compareRow, i === COMPARE_ROWS.length - 1 && { borderBottomWidth: 0 }]}>
-                <View style={[styles.compareIcon, { backgroundColor: row.bg }]}>
-                  <row.Icon size={20} weight="duotone" color={row.iconColor} />
+          {COMPARE_ROWS ? (
+            <View style={styles.card}>
+              {COMPARE_ROWS.map((row, i) => (
+                <View key={i} style={[styles.compareRow, i === COMPARE_ROWS.length - 1 && { borderBottomWidth: 0 }]}>
+                  <View style={[styles.compareIcon, { backgroundColor: row.bg }]}>
+                    <row.Icon size={20} weight="duotone" color={row.iconColor} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.compareTitle}>{row.title}</Text>
+                    <Text style={styles.compareSub}>{row.sub}</Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.compareTitle}>{row.title}</Text>
-                  <Text style={styles.compareSub}>{row.sub}</Text>
-                </View>
+              ))}
+              <View style={styles.compareLock}>
+                <Lock size={14} weight="duotone" color={C.textSecondary} />
+                <Text style={styles.compareLockTxt}>{t('home.privacyNote')}</Text>
               </View>
-            ))}
-            <View style={styles.compareLock}>
-              <Lock size={14} weight="duotone" color={C.textSecondary} />
-              <Text style={styles.compareLockTxt}>Только проценты и тренды — детали кошелька партнёра скрыты</Text>
             </View>
-          </View>
+          ) : (
+            <TouchableOpacity style={styles.partnerEmptyCard} onPress={() => partnerSheetRef.current?.expand()} activeOpacity={0.8}>
+              <View style={styles.partnerEmptyIcon}>
+                <UsersFour size={28} weight="duotone" color={C.green} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.partnerEmptyTitle}>{t('home.connectPartner')}</Text>
+                <Text style={styles.partnerEmptySub}>{t('home.connectPartnerSub')}</Text>
+              </View>
+              <Text style={{ fontSize: 18, color: C.textSecondary }}>›</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Income breakdown */}
         <View>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Доходы</Text>
-            <Text style={styles.sectionHint}>{now.getFullYear()} год</Text>
+            <Text style={styles.sectionTitle}>{t('home.income')}</Text>
+            <Text style={styles.sectionHint}>{t('home.yearLabel', { year: now.getFullYear() })}</Text>
           </View>
           <View style={styles.incomeRow}>
             {incomeBreakdown.map(({ cat, month, year }) => {
@@ -261,13 +298,13 @@ export default function HomeScreen() {
                   <View style={[styles.incomeCircle, { backgroundColor: meta?.color ?? C.green }]} />
                   <View style={styles.incomeCardHeader}>
                     <CategoryIcon cat={cat} size={18} boxSize={32} radius={12} />
-                    <Text style={styles.incomeCat}>{cat}</Text>
+                    <Text style={styles.incomeCat}>{tCat(cat, t)}</Text>
                   </View>
-                  <Text style={styles.incomeSubLbl}>ЗА МЕСЯЦ</Text>
-                  <Text style={styles.incomeAmt}>+{fmt(month)} <Text style={styles.incomeAmtSub}>{CURRENCY}</Text></Text>
+                  <Text style={styles.incomeSubLbl}>{t('home.thisMonth')}</Text>
+                  <Text style={styles.incomeAmt}>+{fmt(month)} <Text style={styles.incomeAmtSub}>{currency}</Text></Text>
                   <View style={styles.incomeDivider} />
-                  <Text style={styles.incomeSubLbl}>ЗА ГОД</Text>
-                  <Text style={styles.incomeYearAmt}>{fmt(year)} {CURRENCY}</Text>
+                  <Text style={styles.incomeSubLbl}>{t('home.thisYear')}</Text>
+                  <Text style={styles.incomeYearAmt}>{fmt(year)} {currency}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -276,21 +313,21 @@ export default function HomeScreen() {
 
         {/* Recent transactions */}
         <View>
-          <Text style={styles.sectionTitle}>Последние операции</Text>
+          <Text style={styles.sectionTitle}>{t('home.recentTxs')}</Text>
           <View style={styles.txCard}>
             {recent.length === 0 ? (
-              <Text style={styles.empty}>Нет операций</Text>
+              <Text style={styles.empty}>{t('home.noTxs')}</Text>
             ) : (
               recent.map((tx) => (
                 <SwipeableRow key={tx.id} onDelete={() => deleteTx(tx.id)}>
                   <View style={styles.txRow}>
                     <CategoryIcon cat={tx.cat} size={20} boxSize={44} radius={12} />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.txNote} numberOfLines={1}>{tx.note || tx.cat}</Text>
-                      <Text style={styles.txMeta}>{tx.cat} · {fmtDate(tx.date)}</Text>
+                      <Text style={styles.txNote} numberOfLines={1}>{(tx.note && !CAT_KEY[tx.note]) ? tx.note : tCat(tx.cat, t)}</Text>
+                      <Text style={styles.txMeta}>{tCat(tx.cat, t)} · {fmtDateLocale(tx.date)}</Text>
                     </View>
                     <Text style={[styles.txAmt, { color: tx.type === 'income' ? '#1a4a35' : '#E88D67' }]}>
-                      {tx.type === 'income' ? '+' : '−'}{fmt(tx.amount)} {CURRENCY}
+                      {tx.type === 'income' ? '+' : '−'}{fmt(tx.amount)} {currency}
                     </Text>
                   </View>
                 </SwipeableRow>
@@ -305,6 +342,8 @@ export default function HomeScreen() {
       <AddAutoRuleSheet ref={autoRuleSheetRef} editRule={editRuleRef.current} onClose={() => { editRuleRef.current = null; }} />
       <OverviewSheet ref={overviewRef} />
       <IncomeDetailSheet cat={incomeDetailCat} txs={txs} onClose={() => setIncomeDetailCat(null)} />
+      <PartnerSheet ref={partnerSheetRef} />
+      <SettingsSheet ref={settingsSheetRef} />
     </SafeAreaView>
   );
 }
@@ -320,9 +359,9 @@ const styles = StyleSheet.create({
   appIcon:      { width: 52, height: 52, borderRadius: 16, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' },
   appTitleBlack: { fontFamily: 'Unbounded-Bold', fontSize: 22, color: C.text,  letterSpacing: -0.8, lineHeight: 25 },
   appTitleGreen: { fontFamily: 'Unbounded-Bold', fontSize: 22, color: C.green, letterSpacing: -0.8, lineHeight: 25 },
-  avatar:       { width: 36, height: 36, borderRadius: 18, backgroundColor: C.borderLight, alignItems: 'center', justifyContent: 'center' },
+  avatar:       { width: 36, height: 36, borderRadius: 18, backgroundColor: C.borderLight },
   headerName:   { fontFamily: 'Manrope-SemiBold', fontSize: 14, color: C.text },
-  signOutBtn:   { width: 30, height: 30, borderRadius: 15, backgroundColor: C.borderLight, alignItems: 'center', justifyContent: 'center' },
+  settingsBtn:  { width: 42, height: 42, borderRadius: 21, backgroundColor: '#e8f5ee', alignItems: 'center', justifyContent: 'center' },
 
   // Balance card
   balanceCard: {
@@ -411,6 +450,12 @@ const styles = StyleSheet.create({
   incomeDivider:   { height: 1, backgroundColor: C.borderLight, marginVertical: 12 },
   incomeYearAmt:   { fontFamily: 'Outfit-Medium', fontSize: 17, color: C.text, marginTop: 4 },
 
+  // Partner empty state
+  partnerEmptyCard:  { flexDirection: 'row', alignItems: 'center', backgroundColor: C.white, borderRadius: 20, padding: 16, gap: 14 },
+  partnerEmptyIcon:  { width: 52, height: 52, borderRadius: 16, backgroundColor: C.green + '18', alignItems: 'center', justifyContent: 'center' },
+  partnerEmptyTitle: { fontFamily: 'Manrope-SemiBold', fontSize: 15, color: C.text },
+  partnerEmptySub:   { fontFamily: 'Manrope-Regular', fontSize: 12, color: C.textSecondary, marginTop: 2 },
+
   // Recent transactions
   empty:       { fontFamily: 'Manrope-Regular', fontSize: 14, color: C.textSecondary, textAlign: 'center', paddingVertical: 24 },
   txCard:      { backgroundColor: C.white, borderRadius: 20, overflow: 'hidden' },
@@ -419,5 +464,4 @@ const styles = StyleSheet.create({
   txNote:      { fontFamily: 'Manrope-SemiBold', fontSize: 15, color: C.text },
   txMeta:      { fontFamily: 'Manrope-Regular', fontSize: 12, color: C.textSecondary, marginTop: 2 },
   txAmt:       { fontFamily: 'Outfit-Medium', fontSize: 15 },
-
 });

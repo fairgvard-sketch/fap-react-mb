@@ -10,6 +10,34 @@ type PhosphorIcon = React.ComponentType<{ size?: number; weight?: string; color?
 
 export type CategoryMeta = { color: string; Icon: PhosphorIcon };
 
+export const CAT_KEY: Record<string, string> = {
+  'Рестораны':    'restaurants',
+  'Продукты':     'groceries',
+  'Транспорт':    'transport',
+  'Такси':        'taxi',
+  'Гаджеты':      'gadgets',
+  'Одежда':       'clothing',
+  'Здоровье':     'health',
+  'Развлечения':  'entertainment',
+  'Игры':         'games',
+  'Бьюти':        'beauty',
+  'Коммунальные': 'utilities',
+  'Путешествия':  'travel',
+  'Подарки':      'gifts',
+  'Образование':  'education',
+  'Разное':       'other',
+  'Зарплата':     'salary',
+  'Чаевые':       'tips',
+  'Другое':       'otherIncome',
+  'Аренда':       'rent',
+  'Подписки':     'subscriptions',
+};
+
+export function tCat(cat: string, t: (key: string) => string): string {
+  const key = CAT_KEY[cat];
+  return key ? t(`cats.${key}`) : cat;
+}
+
 export const EXPENSE_CATS = [
   'Рестораны','Продукты','Транспорт','Такси','Гаджеты','Одежда',
   'Здоровье','Развлечения','Игры','Бьюти','Коммунальные','Путешествия',

@@ -2,11 +2,12 @@ import { forwardRef, useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import BottomSheet, { BottomSheetScrollView, type BottomSheetHandle } from '../BottomSheet';
 import * as Haptics from 'expo-haptics';
-import { useStore, type Subscription } from '../../store/useStore';
+import { useTranslation } from 'react-i18next';
+import { useStore, useCurrency, type Subscription } from '../../store/useStore';
 import { C } from '../../constants/colors';
 import { SVCS } from '../../constants/services';
 import { X } from 'phosphor-react-native';
-import { fmt, CURRENCY } from '../../utils/format';
+import { fmt } from '../../utils/format';
 
 interface Props {
   editSub?: Subscription | null;
@@ -14,7 +15,9 @@ interface Props {
 }
 
 const AddSubscriptionSheet = forwardRef<BottomSheetHandle, Props>(({ editSub, onClose }, ref) => {
+  const { t } = useTranslation();
   const { addSub, updateSub, deleteSub } = useStore();
+  const currency = useCurrency();
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [day, setDay] = useState(1);
@@ -56,14 +59,14 @@ const AddSubscriptionSheet = forwardRef<BottomSheetHandle, Props>(({ editSub, on
     <BottomSheet ref={ref} index={-1} snapPoints={['90%']} enablePanDownToClose handleIndicatorStyle={styles.handle} backgroundStyle={styles.bg}>
       <BottomSheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Text style={styles.title}>{editSub ? 'Изменить подписку' : 'Новая подписка'}</Text>
+          <Text style={styles.title}>{t(editSub ? 'sub.editTitle' : 'sub.addTitle')}</Text>
           <TouchableOpacity onPress={() => { (ref as any)?.current?.close(); onClose?.(); }} style={styles.closeBtn}>
             <X size={18} weight="bold" color={C.textSecondary} />
           </TouchableOpacity>
         </View>
 
         {/* Service picker */}
-        <Text style={styles.lbl}>Сервис</Text>
+        <Text style={styles.lbl}>{t('sub.service')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
           <View style={{ flexDirection: 'row', gap: 12 }}>
             {SVCS.map(s => (
@@ -75,25 +78,25 @@ const AddSubscriptionSheet = forwardRef<BottomSheetHandle, Props>(({ editSub, on
                 <View style={[styles.svcIcon, { backgroundColor: s.bg }]}>
                   <s.Icon size={26} />
                 </View>
-                <Text style={styles.svcName}>{s.n}</Text>
+                <Text style={styles.svcName}>{s.n === 'Своя' ? t('sub.custom') : s.n}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </ScrollView>
 
         {/* Name */}
-        <Text style={styles.lbl}>Название</Text>
+        <Text style={styles.lbl}>{t('sub.name')}</Text>
         <TextInput style={[styles.field, { marginBottom: 18 }]} value={name} onChangeText={setName} placeholder="Netflix" placeholderTextColor={C.textSecondary} />
 
         {/* Amount */}
-        <Text style={styles.lbl}>Стоимость в месяц</Text>
+        <Text style={styles.lbl}>{t('sub.amount', { currency: currency })}</Text>
         <View style={styles.amtRow}>
           <TextInput style={styles.amtInput} value={amount} onChangeText={setAmount} keyboardType="numeric" placeholder="0" placeholderTextColor={C.textSecondary} />
-          <Text style={styles.amtCurrency}>{CURRENCY} / мес.</Text>
+          <Text style={styles.amtCurrency}>{currency} {t('sub.perMonth')}</Text>
         </View>
 
         {/* Day of charge */}
-        <Text style={styles.lbl}>День списания</Text>
+        <Text style={styles.lbl}>{t('sub.day')}</Text>
         <View style={styles.dayGrid}>
           {days.map(d => (
             <TouchableOpacity key={d} style={[styles.dayBtn, day === d && styles.dayBtnActive]} onPress={() => { setDay(d); Haptics.selectionAsync(); }}>
@@ -104,7 +107,7 @@ const AddSubscriptionSheet = forwardRef<BottomSheetHandle, Props>(({ editSub, on
 
         {editSub && (
           <TouchableOpacity style={styles.autoRow} onPress={() => setAutoCharge(v => !v)}>
-            <Text style={styles.autoLabel}>Авто-списание</Text>
+            <Text style={styles.autoLabel}>{t('sub.autoCharge')}</Text>
             <View style={[styles.toggle, autoCharge && styles.toggleOn]}>
               <View style={[styles.toggleKnob, autoCharge && styles.toggleKnobOn]} />
             </View>
@@ -112,11 +115,11 @@ const AddSubscriptionSheet = forwardRef<BottomSheetHandle, Props>(({ editSub, on
         )}
 
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85}>
-          <Text style={styles.saveBtnText}>{editSub ? 'Сохранить' : 'Добавить подписку'}</Text>
+          <Text style={styles.saveBtnText}>{t(editSub ? 'sub.save' : 'sub.addBtn')}</Text>
         </TouchableOpacity>
         {editSub && (
           <TouchableOpacity style={styles.delBtn} onPress={handleDelete}>
-            <Text style={styles.delBtnText}>Удалить подписку</Text>
+            <Text style={styles.delBtnText}>{t('sub.delete')}</Text>
           </TouchableOpacity>
         )}
       </BottomSheetScrollView>

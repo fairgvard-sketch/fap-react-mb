@@ -1,9 +1,11 @@
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { forwardRef, useImperativeHandle, useState, useMemo } from 'react';
-import { useStore } from '../../store/useStore';
+import { useTranslation } from 'react-i18next';
+import { useStore, useCurrency } from '../../store/useStore';
 import CategoryIcon from '../CategoryIcon';
+import { tCat } from '../../constants/categories';
 import { C } from '../../constants/colors';
-import { fmt, CURRENCY } from '../../utils/format';
+import { fmt } from '../../utils/format';
 import { X, TrendUp, TrendDown, CalendarBlank, Scales } from 'phosphor-react-native';
 
 export interface OverviewSheetHandle {
@@ -12,8 +14,10 @@ export interface OverviewSheetHandle {
 }
 
 const OverviewSheet = forwardRef<OverviewSheetHandle>((_, ref) => {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
   const { txs } = useStore();
+  const currency = useCurrency();
 
   useImperativeHandle(ref, () => ({
     open:  () => setVisible(true),
@@ -42,10 +46,10 @@ const OverviewSheet = forwardRef<OverviewSheetHandle>((_, ref) => {
   const top = cats[0];
 
   const STATS = [
-    { Icon: TrendUp,       iconColor: '#1a4a35', bg: '#f0faf4', lbl: 'Доход (месяц)',    val: `${CURRENCY} ${fmt(mInc)}`,     cl: '#1a4a35' },
-    { Icon: TrendDown,     iconColor: '#E88D67', bg: '#fff0f0', lbl: 'Расход (месяц)',   val: `${CURRENCY} ${fmt(mExp)}`,     cl: '#E88D67' },
-    { Icon: CalendarBlank, iconColor: '#8B7355', bg: '#f5f3ee', lbl: 'Ср. расход/день', val: `${CURRENCY} ${fmt(avgDaily)}`, cl: C.text    },
-    { Icon: Scales,        iconColor: '#3d8b6b', bg: '#f0f5f0', lbl: 'Пр. месяц',       val: '—',                  cl: '#aaa'    },
+    { Icon: TrendUp,       iconColor: '#1a4a35', bg: '#f0faf4', lbl: t('overview.incomeMonth'),  val: `${currency} ${fmt(mInc)}`,     cl: '#1a4a35' },
+    { Icon: TrendDown,     iconColor: '#E88D67', bg: '#fff0f0', lbl: t('overview.expenseMonth'), val: `${currency} ${fmt(mExp)}`,     cl: '#E88D67' },
+    { Icon: CalendarBlank, iconColor: '#8B7355', bg: '#f5f3ee', lbl: t('overview.avgDaily'),     val: `${currency} ${fmt(avgDaily)}`, cl: C.text    },
+    { Icon: Scales,        iconColor: '#3d8b6b', bg: '#f0f5f0', lbl: t('overview.prevMonth'),    val: '—',                            cl: '#aaa'    },
   ];
 
   return (
@@ -60,8 +64,8 @@ const OverviewSheet = forwardRef<OverviewSheetHandle>((_, ref) => {
               <X size={18} weight="bold" color={C.textSecondary} />
             </TouchableOpacity>
             <View>
-              <Text style={s.headerHint}>ОБЗОР СЧЁТА</Text>
-              <Text style={s.headerTitle}>Все операции</Text>
+              <Text style={s.headerHint}>{t('overview.hint')}</Text>
+              <Text style={s.headerTitle}>{t('overview.title')}</Text>
             </View>
           </View>
 
@@ -69,16 +73,21 @@ const OverviewSheet = forwardRef<OverviewSheetHandle>((_, ref) => {
 
             {/* Balance card */}
             <View style={s.balCard}>
-              <Text style={s.balLbl}>ОБЩИЙ БАЛАНС</Text>
-              <Text style={s.balAmt}>{CURRENCY} {fmt(balance)}</Text>
+              <View style={[s.circle, { width: 160, height: 160, right: -40, top: -40 }]} />
+              <View style={[s.circle, { width: 90,  height: 90,  right: 55,  top: -25 }]} />
+              <View style={[s.circle, { width: 120, height: 120, right: -10, bottom: -35 }]} />
+              <View style={[s.circle, { width: 70,  height: 70,  right: 100, bottom: -15 }]} />
+              <View style={[s.circle, { width: 80,  height: 80,  left: -20,  bottom: -25 }]} />
+              <Text style={s.balLbl}>{t('overview.totalBalance')}</Text>
+              <Text style={s.balAmt}>{currency} {fmt(balance)}</Text>
               <View style={s.balRow}>
                 <View style={s.balSub}>
-                  <Text style={s.balSubLbl}>ВСЕ ДОХОДЫ</Text>
-                  <Text style={s.balSubAmt}>{CURRENCY} {fmt(allIncome)}</Text>
+                  <Text style={s.balSubLbl}>{t('overview.allIncome')}</Text>
+                  <Text style={s.balSubAmt}>{currency} {fmt(allIncome)}</Text>
                 </View>
                 <View style={s.balSub}>
-                  <Text style={s.balSubLbl}>ВСЕ РАСХОДЫ</Text>
-                  <Text style={s.balSubAmt}>{CURRENCY} {fmt(allExpense)}</Text>
+                  <Text style={s.balSubLbl}>{t('overview.allExpense')}</Text>
+                  <Text style={s.balSubAmt}>{currency} {fmt(allExpense)}</Text>
                 </View>
               </View>
             </View>
@@ -101,10 +110,10 @@ const OverviewSheet = forwardRef<OverviewSheetHandle>((_, ref) => {
               <View style={s.topCard}>
                 <CategoryIcon cat={top[0]} size={22} boxSize={48} radius={14} />
                 <View style={{ flex: 1 }}>
-                  <Text style={s.topHint}>Топ категория</Text>
-                  <Text style={s.topName}>{top[0]}</Text>
+                  <Text style={s.topHint}>{t('overview.topCat')}</Text>
+                  <Text style={s.topName}>{tCat(top[0], t)}</Text>
                 </View>
-                <Text style={s.topAmt}>{CURRENCY} {fmt(top[1])}</Text>
+                <Text style={s.topAmt}>{currency} {fmt(top[1])}</Text>
               </View>
             )}
 
@@ -145,7 +154,8 @@ const s = StyleSheet.create({
 
   content: { padding: 14, gap: 12, paddingBottom: 44 },
 
-  balCard:   { backgroundColor: C.green, borderRadius: 22, padding: 22 },
+  balCard:   { backgroundColor: C.green, borderRadius: 22, padding: 22, overflow: 'hidden', position: 'relative' },
+  circle:    { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.07)' },
   balLbl:    { fontFamily: 'Outfit-SemiBold', fontSize: 10, color: 'rgba(255,255,255,0.65)', letterSpacing: 1.5, marginBottom: 6 },
   balAmt:    { fontFamily: 'Outfit-Medium', fontSize: 38, color: '#fff', letterSpacing: -1, marginBottom: 16 },
   balRow:    { flexDirection: 'row', gap: 10 },

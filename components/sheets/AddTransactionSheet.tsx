@@ -2,23 +2,21 @@ import { forwardRef, useState, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import BottomSheet, { BottomSheetScrollView, type BottomSheetHandle } from '../BottomSheet';
 import * as Haptics from 'expo-haptics';
-import { useStore } from '../../store/useStore';
+import { useTranslation } from 'react-i18next';
+import { useStore, useCurrency } from '../../store/useStore';
 import { C } from '../../constants/colors';
-import { EXPENSE_CATS, INCOME_CATS, CATEGORY_META } from '../../constants/categories';
+import { EXPENSE_CATS, INCOME_CATS, CATEGORY_META, tCat } from '../../constants/categories';
 import { Package, X, CalendarBlank, CaretLeft, CaretRight, CaretUp, CaretDown } from 'phosphor-react-native';
-import { todayISO, CURRENCY } from '../../utils/format';
+import { todayISO } from '../../utils/format';
 
 type TxType = 'expense' | 'income';
-const ENG_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const RU_MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-const WEEKDAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 
-function formatDateLabel(iso: string) {
+function formatDateLabel(iso: string, months: string[]) {
   const d = new Date(iso + 'T12:00:00');
-  return `${d.getDate()} ${ENG_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-function MiniCalendar({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
+function MiniCalendar({ value, onChange, months, weekDays }: { value: string; onChange: (iso: string) => void; months: string[]; weekDays: string[] }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayISO = today.toISOString().slice(0, 10);
@@ -71,7 +69,7 @@ function MiniCalendar({ value, onChange }: { value: string; onChange: (iso: stri
         <TouchableOpacity onPress={prevMonth} style={calStyles.navBtn}>
           <CaretLeft size={18} weight="bold" color={C.text} />
         </TouchableOpacity>
-        <Text style={calStyles.monthLabel}>{RU_MONTHS[viewMonth]} {viewYear}</Text>
+        <Text style={calStyles.monthLabel}>{months[viewMonth]} {viewYear}</Text>
         <TouchableOpacity
           onPress={nextMonth}
           style={[calStyles.navBtn, (isCurrentMonth || isFutureMonth) && calStyles.navBtnDisabled]}
@@ -81,7 +79,7 @@ function MiniCalendar({ value, onChange }: { value: string; onChange: (iso: stri
       </View>
 
       <View style={calStyles.weekRow}>
-        {WEEKDAYS.map(d => (
+        {weekDays.map(d => (
           <View key={d} style={calStyles.cell}>
             <Text style={calStyles.weekDay}>{d}</Text>
           </View>
@@ -131,7 +129,11 @@ function MiniCalendar({ value, onChange }: { value: string; onChange: (iso: stri
 }
 
 const AddTransactionSheet = forwardRef<BottomSheetHandle>((_, ref) => {
+  const { t } = useTranslation();
+  const months   = t('common.monthsFull').split(',');
+  const weekDays = t('common.weekDays').split(',');
   const addTx = useStore(s => s.addTx);
+  const currency = useCurrency();
   const [type, setType] = useState<TxType>('expense');
   const [amount, setAmount] = useState('');
   const [cat, setCat] = useState(EXPENSE_CATS[0]);
@@ -160,7 +162,7 @@ const AddTransactionSheet = forwardRef<BottomSheetHandle>((_, ref) => {
   const handleAdd = useCallback(() => {
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return;
-    addTx({ type, amount: amt, cat, note: note || cat, date });
+    addTx({ type, amount: amt, cat, note: note.trim(), date });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setAmount('');
     setNote('');
@@ -174,7 +176,7 @@ const AddTransactionSheet = forwardRef<BottomSheetHandle>((_, ref) => {
       <BottomSheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         <View style={styles.header}>
-          <Text style={styles.title}>Новая запись</Text>
+          <Text style={styles.title}>{t('addTx.title')}</Text>
           <TouchableOpacity onPress={close} style={styles.closeBtn}>
             <X size={18} weight="bold" color={C.textSecondary} />
           </TouchableOpacity>
@@ -183,15 +185,15 @@ const AddTransactionSheet = forwardRef<BottomSheetHandle>((_, ref) => {
         {/* Type */}
         <View style={styles.typeSwitcher}>
           <TouchableOpacity style={[styles.typeBtn, type === 'expense' && styles.typeBtnActive]} onPress={() => handleTypeChange('expense')}>
-            <Text style={[styles.typeBtnText, type === 'expense' && styles.typeBtnTextActive]}>Расход</Text>
+            <Text style={[styles.typeBtnText, type === 'expense' && styles.typeBtnTextActive]}>{t('addTx.expense')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.typeBtn, type === 'income' && styles.typeBtnActive]} onPress={() => handleTypeChange('income')}>
-            <Text style={[styles.typeBtnText, type === 'income' && styles.typeBtnTextActive]}>Доход</Text>
+            <Text style={[styles.typeBtnText, type === 'income' && styles.typeBtnTextActive]}>{t('addTx.income')}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Amount */}
-        <Text style={styles.lbl}>Сумма</Text>
+        <Text style={styles.lbl}>{t('addTx.amount')}</Text>
         <View style={styles.amtRow}>
           <TextInput
             style={styles.amtInput}
@@ -201,18 +203,18 @@ const AddTransactionSheet = forwardRef<BottomSheetHandle>((_, ref) => {
             placeholder="0"
             placeholderTextColor={C.textSecondary}
           />
-          <Text style={styles.currency}>{CURRENCY}</Text>
+          <Text style={styles.currency}>{currency}</Text>
         </View>
 
         {/* Date */}
-        <Text style={styles.lbl}>Дата</Text>
+        <Text style={styles.lbl}>{t('addTx.date')}</Text>
         <TouchableOpacity
           style={styles.dateBox}
           onPress={() => { setShowCalendar(s => !s); Haptics.selectionAsync(); }}
           activeOpacity={0.75}
         >
           <CalendarBlank size={16} weight="duotone" color={C.textSecondary} />
-          <Text style={styles.dateLabel}>{formatDateLabel(date)}</Text>
+          <Text style={styles.dateLabel}>{formatDateLabel(date, months)}</Text>
           {showCalendar
             ? <CaretUp size={14} weight="bold" color={C.textSecondary} />
             : <CaretDown size={14} weight="bold" color={C.textSecondary} />
@@ -220,21 +222,21 @@ const AddTransactionSheet = forwardRef<BottomSheetHandle>((_, ref) => {
         </TouchableOpacity>
 
         {showCalendar && (
-          <MiniCalendar value={date} onChange={handleCalendarSelect} />
+          <MiniCalendar value={date} onChange={handleCalendarSelect} months={months} weekDays={weekDays} />
         )}
 
         {/* Note */}
-        <Text style={styles.lbl}>Описание</Text>
+        <Text style={styles.lbl}>{t('addTx.note')}</Text>
         <TextInput
           style={styles.field}
           value={note}
           onChangeText={setNote}
-          placeholder="напр. Wolt, такси, iPhone"
+          placeholder={t('addTx.notePlaceholder')}
           placeholderTextColor={C.textSecondary}
         />
 
         {/* Categories */}
-        <Text style={styles.lbl}>Категория</Text>
+        <Text style={styles.lbl}>{t('addTx.category')}</Text>
         <View style={styles.chips}>
           {cats.map(c => {
             const meta = CATEGORY_META[c];
@@ -254,14 +256,14 @@ const AddTransactionSheet = forwardRef<BottomSheetHandle>((_, ref) => {
                 activeOpacity={0.75}
               >
                 <Icon size={15} weight="duotone" color={baseColor} />
-                <Text style={[styles.chipText, { color: '#1c1c1e' }]}>{c}</Text>
+                <Text style={[styles.chipText, { color: '#1c1c1e' }]}>{tCat(c, t)}</Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
         <TouchableOpacity style={styles.addBtn} onPress={handleAdd} activeOpacity={0.85}>
-          <Text style={styles.addBtnText}>Добавить</Text>
+          <Text style={styles.addBtnText}>{t('addTx.add')}</Text>
         </TouchableOpacity>
 
       </BottomSheetScrollView>

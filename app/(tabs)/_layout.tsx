@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { type BottomSheetHandle } from '../../components/BottomSheet';
 import { useStore } from '../../store/useStore';
 import { C } from '../../constants/colors';
@@ -22,12 +23,12 @@ function TabBarIcon({ focused, label, Icon }: { focused: boolean; label: string;
   );
 }
 
-function PiggyTabIcon({ focused }: { focused: boolean }) {
+function PiggyTabIcon({ focused, label }: { focused: boolean; label: string }) {
   const color = focused ? C.green : C.navInactive;
   return (
     <View style={styles.tabItem}>
       <PiggyBankSvg size={22} color={color} />
-      <Text style={[styles.tabLabel, { color }]}>Копилка</Text>
+      <Text style={[styles.tabLabel, { color }]}>{label}</Text>
     </View>
   );
 }
@@ -38,6 +39,7 @@ export default function TabsLayout() {
   const authReady = useStore(s => s.authReady);
   const insets = useSafeAreaInsets();
   const sheetRef = useRef<BottomSheetHandle>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (authReady && !user) router.replace('/login');
@@ -61,20 +63,20 @@ export default function TabsLayout() {
       >
         <Tabs.Screen
           name="index"
-          options={{ title: 'Главная', tabBarIcon: ({ focused }) => <TabBarIcon focused={focused} label="Главная" Icon={House} /> }}
+          options={{ title: t('tabs.home'), tabBarIcon: ({ focused }) => <TabBarIcon focused={focused} label={t('tabs.home')} Icon={House} /> }}
         />
         <Tabs.Screen
           name="piggy"
-          options={{ title: 'Копилка', tabBarIcon: ({ focused }) => <PiggyTabIcon focused={focused} /> }}
+          options={{ title: t('tabs.piggy'), tabBarIcon: ({ focused }) => <PiggyTabIcon focused={focused} label={t('tabs.piggy')} /> }}
         />
         <Tabs.Screen name="__add" options={{ href: null }} />
         <Tabs.Screen
           name="budget"
-          options={{ title: 'Бюджеты', tabBarIcon: ({ focused }) => <TabBarIcon focused={focused} label="Бюджеты" Icon={ChartBar} /> }}
+          options={{ title: t('tabs.budgets'), tabBarIcon: ({ focused }) => <TabBarIcon focused={focused} label={t('tabs.budgets')} Icon={ChartBar} /> }}
         />
         <Tabs.Screen
           name="history"
-          options={{ title: 'История', tabBarIcon: ({ focused }) => <TabBarIcon focused={focused} label="История" Icon={ClockCounterClockwise} /> }}
+          options={{ title: t('tabs.history'), tabBarIcon: ({ focused }) => <TabBarIcon focused={focused} label={t('tabs.history')} Icon={ClockCounterClockwise} /> }}
         />
       </Tabs>
       <AddTransactionSheet ref={sheetRef} />

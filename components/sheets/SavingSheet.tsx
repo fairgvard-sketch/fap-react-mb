@@ -2,15 +2,18 @@ import { forwardRef, useState, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import BottomSheet, { BottomSheetView, type BottomSheetHandle } from '../BottomSheet';
 import * as Haptics from 'expo-haptics';
-import { useStore, type Goal } from '../../store/useStore';
+import { useTranslation } from 'react-i18next';
+import { useStore, useCurrency, type Goal } from '../../store/useStore';
 import { C } from '../../constants/colors';
-import { fmt, CURRENCY } from '../../utils/format';
+import { fmt } from '../../utils/format';
 import { X } from 'phosphor-react-native';
 
 interface Props { goal: Goal | null; onClose?: () => void; }
 
 const SavingSheet = forwardRef<BottomSheetHandle, Props>(({ goal, onClose }, ref) => {
+  const { t } = useTranslation();
   const addSaving = useStore(s => s.addSaving);
+  const currency = useCurrency();
   const [amount, setAmount] = useState('');
 
   const handleSave = useCallback(() => {
@@ -28,7 +31,7 @@ const SavingSheet = forwardRef<BottomSheetHandle, Props>(({ goal, onClose }, ref
     <BottomSheet ref={ref} index={-1} snapPoints={['50%']} enablePanDownToClose handleIndicatorStyle={styles.handle} backgroundStyle={styles.bg}>
       <BottomSheetView style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.title}>Пополнить копилку</Text>
+          <Text style={styles.title}>{t('saving.title')}</Text>
           <TouchableOpacity onPress={() => { (ref as any)?.current?.close(); onClose?.(); }} style={styles.closeBtn}>
             <X size={18} weight="bold" color={C.textSecondary} />
           </TouchableOpacity>
@@ -38,17 +41,17 @@ const SavingSheet = forwardRef<BottomSheetHandle, Props>(({ goal, onClose }, ref
             <Text style={{ fontSize: 24 }}>{goal.icon}</Text>
             <View>
               <Text style={styles.goalName}>{goal.name}</Text>
-              <Text style={styles.goalSaved}>Накоплено: {CURRENCY} {fmt(goal.saved)}</Text>
+              <Text style={styles.goalSaved}>{t('saving.saved', { currency: currency, amount: fmt(goal.saved) })}</Text>
             </View>
           </View>
         )}
-        <Text style={styles.lbl}>Сумма пополнения {CURRENCY}</Text>
+        <Text style={styles.lbl}>{t('saving.amtLabel', { currency: currency })}</Text>
         <View style={styles.amtRow}>
           <TextInput style={styles.amtInput} value={amount} onChangeText={setAmount} keyboardType="numeric" placeholder="0" placeholderTextColor={C.textSecondary} autoFocus />
-          <Text style={styles.currency}>{CURRENCY}</Text>
+          <Text style={styles.currency}>{currency}</Text>
         </View>
         <TouchableOpacity style={[styles.btn, { backgroundColor: goal?.color ?? C.green }]} onPress={handleSave} activeOpacity={0.85}>
-          <Text style={styles.btnText}>Пополнить</Text>
+          <Text style={styles.btnText}>{t('saving.btn')}</Text>
         </TouchableOpacity>
       </BottomSheetView>
     </BottomSheet>

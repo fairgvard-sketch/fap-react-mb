@@ -1,7 +1,8 @@
 export const RU_GEN   = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
 export const RU_FULL  = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 export const RU_SHORT = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
-export const CURRENCY = '₪';
+export const CURRENCY_MAP = { RUB: '₽', USD: '$', EUR: '€', ILS: '₪' } as const;
+export type CurrencyKey = keyof typeof CURRENCY_MAP;
 
 export const fmt = (n: number) => Math.round(n).toLocaleString('he-IL');
 

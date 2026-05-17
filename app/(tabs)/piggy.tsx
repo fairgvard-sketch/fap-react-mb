@@ -1,10 +1,11 @@
 import { ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { type BottomSheetHandle } from '../../components/BottomSheet';
-import { useStore, type Goal } from '../../store/useStore';
+import { useStore, useCurrency, type Goal } from '../../store/useStore';
 import { C } from '../../constants/colors';
-import { fmt, CURRENCY } from '../../utils/format';
+import { fmt } from '../../utils/format';
 import GoalSheet from '../../components/sheets/GoalSheet';
 import SavingSheet from '../../components/sheets/SavingSheet';
 import WithdrawSheet from '../../components/sheets/WithdrawSheet';
@@ -12,14 +13,16 @@ import { PencilSimple, Plus } from 'phosphor-react-native';
 import PiggyBankSvg from '../../components/PiggyBankSvg';
 import { GOAL_ICON_MAP } from '../../constants/goalIcons';
 
-function deadlineLabel(deadline: string): string {
+function deadlineLabel(deadline: string, t: (key: string, opts?: object) => string): string {
   const d = new Date(deadline + 'T12:00:00');
   const diff = Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  return diff > 0 ? ` · осталось ${diff} дн.` : ' · срок истёк';
+  return diff > 0 ? t('piggy.daysLeft', { n: diff }) : t('piggy.expired');
 }
 
 export default function PiggyScreen() {
+  const { t } = useTranslation();
   const { goals } = useStore();
+  const currency = useCurrency();
   const goalSheetRef    = useRef<BottomSheetHandle>(null);
   const savingSheetRef  = useRef<BottomSheetHandle>(null);
   const withdrawSheetRef = useRef<BottomSheetHandle>(null);
@@ -37,8 +40,8 @@ export default function PiggyScreen() {
         {/* Header */}
         <View style={s.header}>
           <View>
-            <Text style={s.subtitle}>НАКОПЛЕНИЯ</Text>
-            <Text style={s.title}>Копилка</Text>
+            <Text style={s.subtitle}>{t('piggy.hint')}</Text>
+            <Text style={s.title}>{t('piggy.title')}</Text>
           </View>
           <TouchableOpacity
             style={s.addBtn}
@@ -55,13 +58,13 @@ export default function PiggyScreen() {
           <View style={s.piggyDeco} pointerEvents="none">
             <PiggyBankSvg size={80} color="rgba(255,255,255,0.12)" />
           </View>
-          <Text style={s.totalLbl}>ВСЕГО НАКОПЛЕНО</Text>
+          <Text style={s.totalLbl}>{t('piggy.totalLbl')}</Text>
           <Text style={s.totalAmt}>
-            {fmt(totalSaved)} <Text style={s.totalCur}>{CURRENCY}</Text>
+            {fmt(totalSaved)} <Text style={s.totalCur}>{currency}</Text>
           </Text>
           {totalTarget > 0 && (
             <>
-              <Text style={s.totalSub}>из {fmt(totalTarget)} {CURRENCY} · {totalPct}%</Text>
+              <Text style={s.totalSub}>{t('piggy.of', { target: fmt(totalTarget), currency: currency, pct: totalPct })}</Text>
               <View style={s.totalBarBg}>
                 <View style={[s.totalBarFill, { width: `${totalPct}%` as any }]} />
               </View>
@@ -73,15 +76,13 @@ export default function PiggyScreen() {
         {goals.length === 0 ? (
           <View style={s.emptyBox}>
             <PiggyBankSvg size={72} color={C.green} />
-            <Text style={s.emptyTitle}>Начните копить</Text>
-            <Text style={s.emptyDesc}>
-              Создайте первую цель — например, «На отпуск» или «На новый телефон»
-            </Text>
+            <Text style={s.emptyTitle}>{t('piggy.emptyTitle')}</Text>
+            <Text style={s.emptyDesc}>{t('piggy.emptyDesc')}</Text>
             <TouchableOpacity
               style={s.emptyBtn}
               onPress={() => { setEditGoal(null); goalSheetRef.current?.expand(); }}
             >
-              <Text style={s.emptyBtnText}>Создать цель</Text>
+              <Text style={s.emptyBtnText}>{t('piggy.createGoal')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -98,8 +99,8 @@ export default function PiggyScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={s.goalName}>{goal.name}</Text>
                     <Text style={s.goalSub}>
-                      {fmt(goal.saved)} {CURRENCY} / {fmt(goal.target)} {CURRENCY}
-                      {goal.deadline ? deadlineLabel(goal.deadline) : ''}
+                      {fmt(goal.saved)} {currency} / {fmt(goal.target)} {currency}
+                      {goal.deadline ? deadlineLabel(goal.deadline, t) : ''}
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -122,13 +123,13 @@ export default function PiggyScreen() {
                     style={[s.btnFill, { backgroundColor: goal.color }]}
                     onPress={() => { setActiveGoal(goal); savingSheetRef.current?.expand(); }}
                   >
-                    <Text style={s.btnFillTxt}>+ Пополнить</Text>
+                    <Text style={s.btnFillTxt}>{t('piggy.topUp')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={s.btnOutline}
                     onPress={() => { setActiveGoal(goal); withdrawSheetRef.current?.expand(); }}
                   >
-                    <Text style={s.btnOutlineTxt}>− Снять</Text>
+                    <Text style={s.btnOutlineTxt}>{t('piggy.withdraw')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

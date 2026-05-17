@@ -2,15 +2,18 @@ import { forwardRef, useState, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import BottomSheet, { BottomSheetView, type BottomSheetHandle } from '../BottomSheet';
 import * as Haptics from 'expo-haptics';
-import { useStore, type Goal } from '../../store/useStore';
+import { useTranslation } from 'react-i18next';
+import { useStore, useCurrency, type Goal } from '../../store/useStore';
 import { C } from '../../constants/colors';
-import { fmt, CURRENCY } from '../../utils/format';
+import { fmt } from '../../utils/format';
 import { X } from 'phosphor-react-native';
 
 interface Props { goal: Goal | null; onClose?: () => void; }
 
 const WithdrawSheet = forwardRef<BottomSheetHandle, Props>(({ goal, onClose }, ref) => {
+  const { t } = useTranslation();
   const withdraw = useStore(s => s.withdraw);
+  const currency = useCurrency();
   const [amount, setAmount] = useState('');
 
   const handleWithdraw = useCallback(() => {
@@ -28,7 +31,7 @@ const WithdrawSheet = forwardRef<BottomSheetHandle, Props>(({ goal, onClose }, r
     <BottomSheet ref={ref} index={-1} snapPoints={['50%']} enablePanDownToClose handleIndicatorStyle={styles.handle} backgroundStyle={styles.bg}>
       <BottomSheetView style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.title}>Снять со счёта</Text>
+          <Text style={styles.title}>{t('withdraw.title')}</Text>
           <TouchableOpacity onPress={() => { (ref as any)?.current?.close(); onClose?.(); }} style={styles.closeBtn}>
             <X size={18} weight="bold" color={C.textSecondary} />
           </TouchableOpacity>
@@ -38,17 +41,17 @@ const WithdrawSheet = forwardRef<BottomSheetHandle, Props>(({ goal, onClose }, r
             <Text style={{ fontSize: 24 }}>{goal.icon}</Text>
             <View>
               <Text style={styles.goalName}>{goal.name}</Text>
-              <Text style={styles.goalSaved}>Доступно: {CURRENCY} {fmt(goal.saved)}</Text>
+              <Text style={styles.goalSaved}>{t('withdraw.saved', { currency: currency, amount: fmt(goal.saved) })}</Text>
             </View>
           </View>
         )}
-        <Text style={styles.lbl}>Сумма снятия {CURRENCY}</Text>
+        <Text style={styles.lbl}>{t('withdraw.amtLabel', { currency: currency })}</Text>
         <View style={styles.amtRow}>
           <TextInput style={styles.amtInput} value={amount} onChangeText={setAmount} keyboardType="numeric" placeholder="0" placeholderTextColor={C.textSecondary} autoFocus />
-          <Text style={styles.currency}>{CURRENCY}</Text>
+          <Text style={styles.currency}>{currency}</Text>
         </View>
         <TouchableOpacity style={styles.btn} onPress={handleWithdraw} activeOpacity={0.85}>
-          <Text style={styles.btnText}>− Снять</Text>
+          <Text style={styles.btnText}>{t('withdraw.btn')}</Text>
         </TouchableOpacity>
       </BottomSheetView>
     </BottomSheet>

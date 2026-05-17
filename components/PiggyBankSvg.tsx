@@ -1,5 +1,5 @@
 import Svg, { Path, Text as SvgText } from 'react-native-svg';
-import { CURRENCY } from '../utils/format';
+import { useCurrency } from '../store/useStore';
 
 interface Props {
   size?: number;
@@ -7,6 +7,7 @@ interface Props {
 }
 
 export default function PiggyBankSvg({ size = 52, color = '#1a4a35' }: Props) {
+  const currency = useCurrency();
   return (
     <Svg width={size} height={size} viewBox="0 0 512.001 512.001" fill={color}>
       {/* Coin circle outline */}
@@ -15,7 +16,7 @@ export default function PiggyBankSvg({ size = 52, color = '#1a4a35' }: Props) {
         c-37.641,0-68.267-30.626-68.267-68.267c0-37.64,30.626-68.267,68.267-68.267
         c37.641,0,68.267,30.626,68.267,68.267C264.533,122.975,233.907,153.601,196.267,153.601z" />
 
-      {/* Shekel sign ₪ centered in the coin */}
+      {/* Currency symbol centered in the coin */}
       <SvgText
         x="196.267"
         y="111"
@@ -24,7 +25,7 @@ export default function PiggyBankSvg({ size = 52, color = '#1a4a35' }: Props) {
         fontWeight="bold"
         fill={color}
       >
-        {CURRENCY}
+        {currency}
       </SvgText>
 
       {/* Body detail / snout curve */}

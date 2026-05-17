@@ -1,6 +1,8 @@
+import '../utils/i18n';
 import { useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Linking from 'expo-linking';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import {
@@ -19,7 +21,7 @@ import {
 import {
   Unbounded_700Bold,
 } from '@expo-google-fonts/unbounded';
-import { auth, onAuthStateChanged, loadUserData } from '../utils/firebase';
+import { auth, onAuthStateChanged, loadUserData, resolveInvite, loadPartnerSummary } from '../utils/firebase';
 import { useStore } from '../store/useStore';
 
 SplashScreen.preventAutoHideAsync();
@@ -31,6 +33,8 @@ export default function RootLayout() {
   const loadFromStorage = useStore(s => s.loadFromStorage);
   const applyRecurringsNow = useStore(s => s.applyRecurringsNow);
   const checkAutoRules = useStore(s => s.checkAutoRules);
+  const setPartner = useStore(s => s.setPartner);
+  const user = useStore(s => s.user);
 
   const [fontsLoaded, fontError] = useFonts({
     'Manrope-Regular':  Manrope_400Regular,
@@ -46,6 +50,22 @@ export default function RootLayout() {
 
   useEffect(() => {
     loadFromStorage();
+  }, []);
+
+  useEffect(() => {
+    async function handleURL(url: string) {
+      const parsed = Linking.parse(url);
+      if (parsed.path === 'invite' && parsed.queryParams?.code) {
+        const code = parsed.queryParams.code as string;
+        const uid = await resolveInvite(code);
+        if (!uid) return;
+        const summary = await loadPartnerSummary(uid);
+        if (summary) setPartner(uid, summary);
+      }
+    }
+    Linking.getInitialURL().then(url => { if (url) handleURL(url); });
+    const sub = Linking.addEventListener('url', ({ url }) => handleURL(url));
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {

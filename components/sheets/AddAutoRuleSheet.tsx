@@ -2,30 +2,32 @@ import { forwardRef, useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import BottomSheet, { BottomSheetScrollView, type BottomSheetHandle } from '../BottomSheet';
 import * as Haptics from 'expo-haptics';
-import { useStore, type AutoRule } from '../../store/useStore';
+import { useTranslation } from 'react-i18next';
+import { useStore, useCurrency, type AutoRule } from '../../store/useStore';
 import { C } from '../../constants/colors';
-import { EXPENSE_CATS, INCOME_CATS, CATEGORY_META } from '../../constants/categories';
+import { EXPENSE_CATS, INCOME_CATS, CATEGORY_META, tCat } from '../../constants/categories';
 import { SVCS } from '../../constants/services';
 import { CustomIcon } from '../BrandIcons';
-import { fmt, CURRENCY } from '../../utils/format';
+import { fmt } from '../../utils/format';
 import { X, CalendarBlank, CaretLeft, CaretRight, CaretUp, CaretDown } from 'phosphor-react-native';
 
 interface Props { editRule?: AutoRule | null; onClose?: () => void; }
 
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
-const RU_MONTHS_FULL = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-const ENG_MONTHS     = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const WEEKDAYS       = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
-
-function formatDate(iso: string) {
-  const d = new Date(iso + 'T12:00:00');
-  return `${d.getDate()} ${ENG_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-}
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 
-// Calendar that allows selecting any date (past and future)
-function CalendarAny({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
+function formatDate(iso: string, monthsShort: string[]) {
+  const d = new Date(iso + 'T12:00:00');
+  return `${d.getDate()} ${monthsShort[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function CalendarAny({ value, onChange, monthsFull, weekDays }: {
+  value: string;
+  onChange: (iso: string) => void;
+  monthsFull: string[];
+  weekDays: string[];
+}) {
   const sel = new Date(value + 'T12:00:00');
   const today = todayISO();
 
@@ -63,14 +65,14 @@ function CalendarAny({ value, onChange }: { value: string; onChange: (iso: strin
         <TouchableOpacity onPress={prevMonth} style={cal.navBtn}>
           <CaretLeft size={18} weight="bold" color={C.text} />
         </TouchableOpacity>
-        <Text style={cal.monthLabel}>{RU_MONTHS_FULL[viewMonth]} {viewYear}</Text>
+        <Text style={cal.monthLabel}>{monthsFull[viewMonth]} {viewYear}</Text>
         <TouchableOpacity onPress={nextMonth} style={cal.navBtn}>
           <CaretRight size={18} weight="bold" color={C.text} />
         </TouchableOpacity>
       </View>
 
       <View style={cal.weekRow}>
-        {WEEKDAYS.map(d => (
+        {weekDays.map(d => (
           <View key={d} style={cal.cell}>
             <Text style={cal.weekDay}>{d}</Text>
           </View>
@@ -107,7 +109,13 @@ function CalendarAny({ value, onChange }: { value: string; onChange: (iso: strin
 
 // ─────────────────────────────────────────────
 const AddAutoRuleSheet = forwardRef<BottomSheetHandle, Props>(({ editRule, onClose }, ref) => {
+  const { t } = useTranslation();
+  const monthsFull = t('common.monthsFull').split(',');
+  const monthsShort = t('common.monthsShort').split(',');
+  const weekDays   = t('common.weekDays').split(',');
+
   const { subs, addAutoRule, updateAutoRule, deleteAutoRule } = useStore();
+  const currency = useCurrency();
 
   const [ruleType,   setRuleType]   = useState<'category' | 'subscription'>('category');
   const [txType,     setTxType]     = useState<'expense' | 'income'>('expense');
@@ -147,8 +155,8 @@ const AddAutoRuleSheet = forwardRef<BottomSheetHandle, Props>(({ editRule, onClo
 
   useEffect(() => {
     if (ruleType !== 'category') return;
-    const cats = txType === 'income' ? INCOME_CATS : EXPENSE_CATS;
-    if (!cats.includes(cat)) setCat(cats[0]);
+    const catList = txType === 'income' ? INCOME_CATS : EXPENSE_CATS;
+    if (!catList.includes(cat)) setCat(catList[0]);
   }, [txType, ruleType]);
 
   const close = useCallback(() => {
@@ -188,14 +196,14 @@ const AddAutoRuleSheet = forwardRef<BottomSheetHandle, Props>(({ editRule, onClo
     close();
   };
 
-  const cats = txType === 'income' ? INCOME_CATS : EXPENSE_CATS;
+  const catList = txType === 'income' ? INCOME_CATS : EXPENSE_CATS;
 
   return (
     <BottomSheet ref={ref} index={-1} snapPoints={['92%']} enablePanDownToClose handleIndicatorStyle={s.handle} backgroundStyle={s.bg}>
       <BottomSheetScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
 
         <View style={s.header}>
-          <Text style={s.title}>{editRule ? 'Изменить авто-платёж' : 'Новый авто-платёж'}</Text>
+          <Text style={s.title}>{t(editRule ? 'autoRule.editTitle' : 'autoRule.addTitle')}</Text>
           <TouchableOpacity onPress={close} style={s.closeBtn}>
             <X size={18} weight="bold" color={C.textSecondary} />
           </TouchableOpacity>
@@ -203,9 +211,9 @@ const AddAutoRuleSheet = forwardRef<BottomSheetHandle, Props>(({ editRule, onClo
 
         {/* Rule type */}
         <View style={s.sw}>
-          {(['category', 'subscription'] as const).map((t, i) => (
-            <TouchableOpacity key={t} style={[s.swBtn, ruleType === t && s.swBtnOn]} onPress={() => { setRuleType(t); Haptics.selectionAsync(); }}>
-              <Text style={[s.swTxt, ruleType === t && s.swTxtOn]}>{i === 0 ? 'По категории' : 'Из подписки'}</Text>
+          {(['category', 'subscription'] as const).map((type, i) => (
+            <TouchableOpacity key={type} style={[s.swBtn, ruleType === type && s.swBtnOn]} onPress={() => { setRuleType(type); Haptics.selectionAsync(); }}>
+              <Text style={[s.swTxt, ruleType === type && s.swTxtOn]}>{i === 0 ? t('autoRule.byCategory') : t('autoRule.fromSub')}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -214,33 +222,33 @@ const AddAutoRuleSheet = forwardRef<BottomSheetHandle, Props>(({ editRule, onClo
           <>
             {/* Expense / Income */}
             <View style={[s.sw, { marginBottom: 18 }]}>
-              {(['expense', 'income'] as const).map((t, i) => (
-                <TouchableOpacity key={t} style={[s.swBtn, txType === t && s.swBtnOn]} onPress={() => { setTxType(t); Haptics.selectionAsync(); }}>
-                  <Text style={[s.swTxt, txType === t && s.swTxtOn]}>{i === 0 ? 'Расход' : 'Доход'}</Text>
+              {(['expense', 'income'] as const).map((type, i) => (
+                <TouchableOpacity key={type} style={[s.swBtn, txType === type && s.swBtnOn]} onPress={() => { setTxType(type); Haptics.selectionAsync(); }}>
+                  <Text style={[s.swTxt, txType === type && s.swTxtOn]}>{i === 0 ? t('addTx.expense') : t('addTx.income')}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={s.lbl}>Название</Text>
-            <TextInput style={[s.field, { marginBottom: 18 }]} value={name} onChangeText={setName} placeholder="напр. Аренда квартиры" placeholderTextColor={C.textSecondary} />
+            <Text style={s.lbl}>{t('autoRule.name')}</Text>
+            <TextInput style={[s.field, { marginBottom: 18 }]} value={name} onChangeText={setName} placeholder={t('autoRule.namePlaceholder')} placeholderTextColor={C.textSecondary} />
 
-            <Text style={s.lbl}>Сумма</Text>
+            <Text style={s.lbl}>{t('autoRule.amount')}</Text>
             <View style={s.amtRow}>
               <TextInput style={s.amtInput} value={amount} onChangeText={setAmount} keyboardType="numeric" placeholder="0" placeholderTextColor={C.textSecondary} />
-              <Text style={s.amtCur}>{CURRENCY} /мес.</Text>
+              <Text style={s.amtCur}>{currency} {t('autoRule.perMonth')}</Text>
             </View>
 
-            <Text style={s.lbl}>Категория</Text>
+            <Text style={s.lbl}>{t('autoRule.category')}</Text>
             <View style={s.chips}>
-              {cats.map(c => {
+              {catList.map(c => {
                 const meta = CATEGORY_META[c];
                 const color = meta?.color ?? '#888';
                 const Icon = meta?.Icon;
-                const active = cat === c;
+                const isActive = cat === c;
                 return (
                   <TouchableOpacity
                     key={c}
-                    style={[s.chip, active
+                    style={[s.chip, isActive
                       ? { backgroundColor: color + '28', borderColor: color }
                       : { backgroundColor: '#fff', borderColor: '#E8E8E8' },
                     ]}
@@ -248,13 +256,13 @@ const AddAutoRuleSheet = forwardRef<BottomSheetHandle, Props>(({ editRule, onClo
                     activeOpacity={0.75}
                   >
                     {Icon && <Icon size={14} weight="duotone" color={color} />}
-                    <Text style={[s.chipTxt, { color: active ? color : C.text }]}>{c}</Text>
+                    <Text style={[s.chipTxt, { color: isActive ? color : C.text }]}>{tCat(c, t)}</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
 
-            <Text style={s.lbl}>День списания</Text>
+            <Text style={s.lbl}>{t('autoRule.billingDay')}</Text>
             <View style={s.dayGrid}>
               {DAYS.map(d => (
                 <TouchableOpacity key={d} style={[s.dayBtn, day === d && s.dayBtnOn]} onPress={() => { setDay(d); Haptics.selectionAsync(); }}>
@@ -265,10 +273,10 @@ const AddAutoRuleSheet = forwardRef<BottomSheetHandle, Props>(({ editRule, onClo
           </>
         ) : (
           <>
-            <Text style={s.lbl}>Выберите подписку</Text>
+            <Text style={s.lbl}>{t('autoRule.selectSub')}</Text>
             {subs.length === 0 ? (
               <View style={s.emptyBox}>
-                <Text style={s.emptyTxt}>Сначала добавьте подписку на главном экране</Text>
+                <Text style={s.emptyTxt}>{t('autoRule.noSubsHint')}</Text>
               </View>
             ) : (
               <View style={{ gap: 10, marginBottom: 18 }}>
@@ -282,7 +290,7 @@ const AddAutoRuleSheet = forwardRef<BottomSheetHandle, Props>(({ editRule, onClo
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={s.subName}>{sub.name}</Text>
-                        <Text style={s.subMeta}>{sub.day} числа · {fmt(sub.amount)} {CURRENCY}/мес.</Text>
+                        <Text style={s.subMeta}>{t('autoRule.day', { day: sub.day })} · {fmt(sub.amount)} {currency}{t('autoRule.perMonth')}</Text>
                       </View>
                       {selected && <View style={s.check}><Text style={{ color: C.white, fontSize: 12 }}>✓</Text></View>}
                     </TouchableOpacity>
@@ -293,15 +301,15 @@ const AddAutoRuleSheet = forwardRef<BottomSheetHandle, Props>(({ editRule, onClo
           </>
         )}
 
-        {/* ── Начать с ── */}
-        <Text style={s.lbl}>Начать с</Text>
+        {/* Start from */}
+        <Text style={s.lbl}>{t('autoRule.startFrom')}</Text>
         <TouchableOpacity
           style={s.dateBtn}
           onPress={() => { setShowCal(v => !v); Haptics.selectionAsync(); }}
           activeOpacity={0.75}
         >
           <CalendarBlank size={16} weight="duotone" color={C.textSecondary} />
-          <Text style={s.dateBtnTxt}>{formatDate(startFrom)}</Text>
+          <Text style={s.dateBtnTxt}>{formatDate(startFrom, monthsShort)}</Text>
           {showCal
             ? <CaretUp   size={14} weight="bold" color={C.textSecondary} />
             : <CaretDown size={14} weight="bold" color={C.textSecondary} />
@@ -312,14 +320,16 @@ const AddAutoRuleSheet = forwardRef<BottomSheetHandle, Props>(({ editRule, onClo
           <CalendarAny
             value={startFrom}
             onChange={iso => { setStartFrom(iso); setShowCal(false); }}
+            monthsFull={monthsFull}
+            weekDays={weekDays}
           />
         )}
 
         {/* Active toggle */}
         <TouchableOpacity style={s.toggleRow} onPress={() => { setActive(v => !v); Haptics.selectionAsync(); }} activeOpacity={0.8}>
           <View style={{ flex: 1 }}>
-            <Text style={s.toggleTitle}>Активно</Text>
-            <Text style={s.toggleSub}>Автоматически создавать запись каждый месяц</Text>
+            <Text style={s.toggleTitle}>{t('autoRule.activeTitle')}</Text>
+            <Text style={s.toggleSub}>{t('autoRule.activeSub')}</Text>
           </View>
           <View style={[s.toggle, active && s.toggleOn]}>
             <View style={[s.knob, active && s.knobOn]} />
@@ -327,12 +337,12 @@ const AddAutoRuleSheet = forwardRef<BottomSheetHandle, Props>(({ editRule, onClo
         </TouchableOpacity>
 
         <TouchableOpacity style={s.saveBtn} onPress={handleSave} activeOpacity={0.85}>
-          <Text style={s.saveBtnTxt}>{editRule ? 'Сохранить' : 'Добавить'}</Text>
+          <Text style={s.saveBtnTxt}>{t(editRule ? 'autoRule.save' : 'autoRule.addBtn')}</Text>
         </TouchableOpacity>
 
         {editRule && (
           <TouchableOpacity style={s.delBtn} onPress={handleDelete} activeOpacity={0.85}>
-            <Text style={s.delBtnTxt}>Удалить правило</Text>
+            <Text style={s.delBtnTxt}>{t('autoRule.delete')}</Text>
           </TouchableOpacity>
         )}
       </BottomSheetScrollView>

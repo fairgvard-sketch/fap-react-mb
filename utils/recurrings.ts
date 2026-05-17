@@ -1,4 +1,5 @@
 import type { Transaction, Recurring } from '../store/useStore';
+import { randomUUID } from 'expo-crypto';
 import { todayISO } from './format';
 
 export function applyRecurrings(txs: Transaction[], recurrings: Recurring[]): Transaction[] {
@@ -18,7 +19,7 @@ export function applyRecurrings(txs: Transaction[], recurrings: Recurring[]): Tr
       if (!alreadyExists) {
         newTxs = [
           ...newTxs,
-          { id: crypto.randomUUID(), type: r.type, amount: r.amount, cat: r.cat, note: r.note, date: dateStr },
+          { id: randomUUID(), type: r.type, amount: r.amount, cat: r.cat, note: r.note, date: dateStr },
         ];
         changed = true;
       }

@@ -2,25 +2,27 @@ import { forwardRef, useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import BottomSheet, { BottomSheetScrollView, type BottomSheetHandle } from '../BottomSheet';
 import * as Haptics from 'expo-haptics';
-import { useStore, type Goal } from '../../store/useStore';
+import { useTranslation } from 'react-i18next';
+import { useStore, useCurrency, type Goal } from '../../store/useStore';
 import { C } from '../../constants/colors';
 import { X, CalendarBlank, CaretLeft, CaretRight, CaretUp, CaretDown } from 'phosphor-react-native';
 import { GOAL_ICON_MAP, GOAL_ICON_KEYS } from '../../constants/goalIcons';
-import { CURRENCY } from '../../utils/format';
 
 const GOAL_COLORS = ['#1a4a35','#3d8b6b','#f4a261','#e76f51','#457b9d','#a8dadc','#e9c46a','#264653','#95d5b2','#b7e4c7'];
-const RU_MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-const RU_MONTHS_SHORT = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
-const WEEKDAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 
-function formatDeadline(iso: string) {
+function formatDeadline(iso: string, monthsShort: string[]) {
   const d = new Date(iso + 'T12:00:00');
-  return `${d.getDate()} ${RU_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+  return `${d.getDate()} ${monthsShort[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-function CalendarFuture({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
+function CalendarFuture({ value, onChange, monthsFull, weekDays }: {
+  value: string;
+  onChange: (iso: string) => void;
+  monthsFull: string[];
+  weekDays: string[];
+}) {
   const today = todayISO();
   const init = value || today;
   const sel = new Date(init + 'T12:00:00');
@@ -62,14 +64,14 @@ function CalendarFuture({ value, onChange }: { value: string; onChange: (iso: st
         <TouchableOpacity onPress={prevMonth} style={[cal.navBtn, isPastMonth && cal.navBtnDisabled]}>
           <CaretLeft size={16} weight="bold" color={isPastMonth ? C.borderLight : C.text} />
         </TouchableOpacity>
-        <Text style={cal.monthLabel}>{RU_MONTHS[viewMonth]} {viewYear}</Text>
+        <Text style={cal.monthLabel}>{monthsFull[viewMonth]} {viewYear}</Text>
         <TouchableOpacity onPress={nextMonth} style={cal.navBtn}>
           <CaretRight size={16} weight="bold" color={C.text} />
         </TouchableOpacity>
       </View>
 
       <View style={cal.weekRow}>
-        {WEEKDAYS.map(d => (
+        {weekDays.map(d => (
           <View key={d} style={cal.cell}>
             <Text style={cal.weekDay}>{d}</Text>
           </View>
@@ -109,7 +111,12 @@ function CalendarFuture({ value, onChange }: { value: string; onChange: (iso: st
 interface Props { editGoal?: Goal | null; onClose?: () => void; }
 
 const GoalSheet = forwardRef<BottomSheetHandle, Props>(({ editGoal, onClose }, ref) => {
+  const { t } = useTranslation();
+  const monthsFull  = t('common.monthsFull').split(',');
+  const monthsShort = t('common.monthsShort').split(',');
+  const weekDays    = t('common.weekDays').split(',');
   const { addGoal, updateGoal, deleteGoal } = useStore();
+  const currency = useCurrency();
   const [icon,     setIcon]     = useState(GOAL_ICON_KEYS[0]);
   const [color,    setColor]    = useState(GOAL_COLORS[0]);
   const [name,     setName]     = useState('');
@@ -128,9 +135,9 @@ const GoalSheet = forwardRef<BottomSheetHandle, Props>(({ editGoal, onClose }, r
   }, [editGoal]);
 
   const handleSave = useCallback(() => {
-    const t = parseFloat(target);
-    if (!name.trim() || !t) return;
-    const data = { icon, color, name: name.trim(), target: t, deadline: deadline || undefined };
+    const tgt = parseFloat(target);
+    if (!name.trim() || !tgt) return;
+    const data = { icon, color, name: name.trim(), target: tgt, deadline: deadline || undefined };
     if (editGoal) updateGoal({ ...editGoal, ...data });
     else addGoal(data);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -148,13 +155,13 @@ const GoalSheet = forwardRef<BottomSheetHandle, Props>(({ editGoal, onClose }, r
     <BottomSheet ref={ref} index={-1} snapPoints={['88%']} enablePanDownToClose handleIndicatorStyle={styles.handle} backgroundStyle={styles.bg}>
       <BottomSheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Text style={styles.title}>{editGoal ? 'Изменить цель' : 'Новая цель'}</Text>
+          <Text style={styles.title}>{t(editGoal ? 'goal.editTitle' : 'goal.addTitle')}</Text>
           <TouchableOpacity onPress={() => { (ref as any)?.current?.close(); onClose?.(); }} style={styles.closeBtn}>
             <X size={18} weight="bold" color={C.textSecondary} />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.lbl}>Иконка</Text>
+        <Text style={styles.lbl}>{t('goal.icon')}</Text>
         <View style={styles.iconsRow}>
           {GOAL_ICON_KEYS.map(key => {
             const Icon = GOAL_ICON_MAP[key];
@@ -172,20 +179,20 @@ const GoalSheet = forwardRef<BottomSheetHandle, Props>(({ editGoal, onClose }, r
           })}
         </View>
 
-        <Text style={styles.lbl}>Цвет</Text>
+        <Text style={styles.lbl}>{t('goal.color')}</Text>
         <View style={styles.colorsRow}>
           {GOAL_COLORS.map(cl => (
             <TouchableOpacity key={cl} style={[styles.colorBtn, { backgroundColor: cl }, color === cl && styles.colorBtnActive]} onPress={() => { setColor(cl); Haptics.selectionAsync(); }} />
           ))}
         </View>
 
-        <Text style={styles.lbl}>Название</Text>
-        <TextInput style={[styles.field, { marginBottom: 18 }]} value={name} onChangeText={setName} placeholder="На отпуск" placeholderTextColor={C.textSecondary} />
+        <Text style={styles.lbl}>{t('goal.name')}</Text>
+        <TextInput style={[styles.field, { marginBottom: 18 }]} value={name} onChangeText={setName} placeholder={t('goal.namePlaceholder')} placeholderTextColor={C.textSecondary} />
 
-        <Text style={styles.lbl}>Цель, {CURRENCY}</Text>
+        <Text style={styles.lbl}>{t('goal.amount', { currency: currency })}</Text>
         <TextInput style={[styles.field, { marginBottom: 18 }]} value={target} onChangeText={setTarget} keyboardType="numeric" placeholder="5000" placeholderTextColor={C.textSecondary} />
 
-        <Text style={styles.lbl}>Дата цели (необязательно)</Text>
+        <Text style={styles.lbl}>{t('goal.deadline')}</Text>
         <TouchableOpacity
           style={styles.dateBox}
           onPress={() => { setShowCal(v => !v); Haptics.selectionAsync(); }}
@@ -193,7 +200,7 @@ const GoalSheet = forwardRef<BottomSheetHandle, Props>(({ editGoal, onClose }, r
         >
           <CalendarBlank size={16} weight="duotone" color={C.textSecondary} />
           <Text style={[styles.dateLabel, !deadline && styles.datePlaceholder]}>
-            {deadline ? formatDeadline(deadline) : 'Выбрать дату'}
+            {deadline ? formatDeadline(deadline, monthsShort) : t('goal.noDeadline')}
           </Text>
           {deadline ? (
             <TouchableOpacity
@@ -213,15 +220,17 @@ const GoalSheet = forwardRef<BottomSheetHandle, Props>(({ editGoal, onClose }, r
           <CalendarFuture
             value={deadline}
             onChange={iso => { setDeadline(iso); setShowCal(false); }}
+            monthsFull={monthsFull}
+            weekDays={weekDays}
           />
         )}
 
         <TouchableOpacity style={[styles.saveBtn, { backgroundColor: color, marginTop: 24 }]} onPress={handleSave} activeOpacity={0.85}>
-          <Text style={styles.saveBtnText}>{editGoal ? 'Сохранить' : 'Создать'}</Text>
+          <Text style={styles.saveBtnText}>{t('goal.save')}</Text>
         </TouchableOpacity>
         {editGoal && (
           <TouchableOpacity style={styles.delBtn} onPress={handleDelete}>
-            <Text style={styles.delBtnText}>Удалить цель</Text>
+            <Text style={styles.delBtnText}>{t('goal.delete')}</Text>
           </TouchableOpacity>
         )}
       </BottomSheetScrollView>

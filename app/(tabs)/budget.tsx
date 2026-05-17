@@ -1,15 +1,18 @@
 import { ScrollView, View, Text, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useMemo } from 'react';
-import { useStore } from '../../store/useStore';
+import { useTranslation } from 'react-i18next';
+import { useStore, useCurrency } from '../../store/useStore';
 import { C } from '../../constants/colors';
-import { EXPENSE_CATS, CATEGORY_META } from '../../constants/categories';
+import { EXPENSE_CATS, CATEGORY_META, tCat } from '../../constants/categories';
 import CategoryIcon from '../../components/CategoryIcon';
 import { Target, Trash, Plus, X } from 'phosphor-react-native';
-import { fmt, CURRENCY } from '../../utils/format';
+import { fmt } from '../../utils/format';
 
 export default function BudgetScreen() {
+  const { t } = useTranslation();
   const { txs, budgets, setBudget, deleteBudget } = useStore();
+  const currency = useCurrency();
   const [addOpen, setAddOpen]   = useState(false);
   const [selCat, setSelCat]     = useState(EXPENSE_CATS[0]);
   const [limitVal, setLimitVal] = useState('');
@@ -45,9 +48,9 @@ export default function BudgetScreen() {
         {/* Header */}
         <View style={styles.pageHeader}>
           <View>
-            <Text style={styles.pageHint}>ЦЕЛИ</Text>
-            <Text style={styles.pageTitle}>Бюджеты</Text>
-            <Text style={styles.pageDesc}>Месячные лимиты по категориям</Text>
+            <Text style={styles.pageHint}>{t('budget.hint')}</Text>
+            <Text style={styles.pageTitle}>{t('budget.title')}</Text>
+            <Text style={styles.pageDesc}>{t('budget.desc')}</Text>
           </View>
           <TouchableOpacity
             style={[styles.addBtn, addOpen && styles.addBtnClose]}
@@ -63,7 +66,7 @@ export default function BudgetScreen() {
         {/* Add form */}
         {addOpen && (
           <View style={styles.addForm}>
-            <Text style={styles.lbl}>Категория</Text>
+            <Text style={styles.lbl}>{t('budget.catLabel')}</Text>
             <View style={styles.chips}>
               {EXPENSE_CATS.map(c => {
                 const color = CATEGORY_META[c]?.color ?? '#888';
@@ -74,12 +77,12 @@ export default function BudgetScreen() {
                     style={[styles.chip, active && { backgroundColor: color + '28', borderColor: color }]}
                     onPress={() => pickCat(c)}
                   >
-                    <Text style={[styles.chipText, active && { color }]}>{c}</Text>
+                    <Text style={[styles.chipText, active && { color }]}>{tCat(c, t)}</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
-            <Text style={styles.lbl}>Месячный лимит, {CURRENCY}</Text>
+            <Text style={styles.lbl}>{t('budget.limitLabel', { currency: currency })}</Text>
             <TextInput
               style={styles.limitInput}
               value={limitVal}
@@ -92,7 +95,7 @@ export default function BudgetScreen() {
               onSubmitEditing={handleSave}
             />
             <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-              <Text style={styles.saveBtnText}>Сохранить</Text>
+              <Text style={styles.saveBtnText}>{t('budget.save')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -101,13 +104,13 @@ export default function BudgetScreen() {
         {budgetList.length === 0 ? (
           <View style={styles.emptyBox}>
             <Target size={52} weight="duotone" color={C.green} />
-            <Text style={styles.emptyTitle}>Установите цель</Text>
-            <Text style={styles.emptyDesc}>Добавьте первый бюджет — и следите за лимитами</Text>
+            <Text style={styles.emptyTitle}>{t('budget.emptyTitle')}</Text>
+            <Text style={styles.emptyDesc}>{t('budget.emptyDesc')}</Text>
             <TouchableOpacity
               style={styles.emptyBtn}
               onPress={() => { setAddOpen(true); setLimitVal(''); setSelCat(EXPENSE_CATS[0]); }}
             >
-              <Text style={styles.emptyBtnText}>Добавить бюджет</Text>
+              <Text style={styles.emptyBtnText}>{t('budget.addBtn')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -122,9 +125,9 @@ export default function BudgetScreen() {
                 <View style={styles.budgetHeader}>
                   <CategoryIcon cat={cat} size={22} boxSize={48} radius={14} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.catName}>{cat}</Text>
+                    <Text style={styles.catName}>{tCat(cat, t)}</Text>
                     <Text style={[styles.catSub, over && { color: '#e05a5a' }]}>
-                      {CURRENCY} {fmt(spentAmt)} из {CURRENCY} {fmt(lim)}{over ? ' · Превышен!' : ''}
+                      {currency} {fmt(spentAmt)} {t('budget.of', { currency: currency, limit: fmt(lim) })}{over ? t('budget.over') : ''}
                     </Text>
                   </View>
                   <Text style={[styles.pctText, over && { color: '#e05a5a' }]}>{Math.round(pct * 100)}%</Text>
